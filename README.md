@@ -1,2 +1,2 @@
-# seq2seq_pytorch
-Sequence to sequence model learning with Pytorch
+# seq2seq_base_pytorch
+Sequence to sequence learning with Pytorch
