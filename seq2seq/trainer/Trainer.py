@@ -6,17 +6,25 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.autograd import Variable
+from torch.utils.data import DataLoader
 #from torch.nn.utils.rnn import pad_sequence   pytorch 0.3.0 or later
+
+from seq2seq.dataset import sorted_collate_fn
 
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 
 
 class Trainer(object):
-    def __init__(self, model, data_loader, gpu_id=-1, print_interval=1, plot_interval=1, checkpoint_interval=10, expr_path='experiment/'):
+    """
+    A trainer class supports our seq2seq model to train it easily
+    """
+    
+    def __init__(self, model, dataset, gpu_id=-1, print_interval=1, plot_interval=1, checkpoint_interval=10, expr_path='experiment/'):
         super(Trainer, self).__init__()
         self.model = model
-        self.data_loader = data_loader
+        self.dataset = dataset
+        self.data_loader = None
         
         self.gpu_id = gpu_id
         
@@ -28,8 +36,15 @@ class Trainer(object):
         if not os.path.exists(self.expr_path):
             os.makedirs(self.expr_path)
         
-    def train(self, num_epoch, optimizer=None, criterion=None):
+    def train(self, num_epoch, batch_size, optimizer=None, criterion=None):
         start = time.time()
+        
+        self.data_loader = DataLoader(
+            dataset=dataset,
+            batch_size=batch_size,
+            collate_fn=sorted_collate_fn,
+            num_workers=16
+        )
         
         if optimizer == None:
             optimizer = optim.Adam(self.model.parameters(), lr=1e-3)
@@ -81,7 +96,7 @@ class Trainer(object):
         self._showPlot(plot_losses)
         
         
-    ##  밑에 애들 utils 로 옮기자
+    #TODO: 밑에 애들 utils 로 옮길까
     def prepareBatch(self, batch, appendSOS=False, appendEOS=False):
         SOS_IDX = self.data_loader.dataset.src_vocab.sos_idx
         EOS_IDX = self.data_loader.dataset.src_vocab.eos_idx

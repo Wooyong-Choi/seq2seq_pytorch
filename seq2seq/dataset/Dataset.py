@@ -8,6 +8,12 @@ from torch.utils.data import Dataset
 from .Vocab import Vocab
 
 class Dataset(Dataset):
+    """
+    A dataset basically supports iteration over all the examples it contains.
+    We currently supports only text data with this class.
+    This class is inheriting Dataset class in torch.utils.data.
+    """
+
     def __init__(self, src_file_path, tgt_file_path, max_length, src_vocab_size=sys.maxsize, tgt_vocab_size=sys.maxsize):
         super(Dataset, self).__init__()
         
@@ -89,10 +95,10 @@ class Dataset(Dataset):
         print("Target vocab : {} ({} reduced)".format(self.tgt_vocab.n_words, org_tgt_n_words - self.tgt_vocab.n_words))
                                                               
 def sorted_collate_fn(batch):
-    '''
+    """
     Sort data using source sentences lengths in decreasing order
     for packing padded sequence
-    '''
+    """
     batch = sorted(batch, key=lambda x: len(x[0]), reverse=True)
     src_indices = [item[0] for item in batch]
     tgt_indices = [item[1] for item in batch]

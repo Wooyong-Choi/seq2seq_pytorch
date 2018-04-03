@@ -1,6 +1,10 @@
 import operator
 
 class Vocab:
+    """
+    A vocabulary class has word dictionary.
+    """
+    
     def __init__(self):
         self.num_symbol = 4
         self.pad_tok, self.sos_tok, self.eos_tok, self.unk_tok = ('<PAD>', '<SOS>', '<EOS>', '<UNK>')        
@@ -26,6 +30,10 @@ class Vocab:
             self.word2count[word] += 1            
         
     def makeVocabDict(self, vocab_size):
+        """
+        Make index2word and word2index with added sentences and words before.
+        The indices of word is decided by its frequency.
+        """
         # make vocab dictionary with min(given vocab size, counted vocab size)
         vocab_size = min(vocab_size, len(self.word2count)+4)
         

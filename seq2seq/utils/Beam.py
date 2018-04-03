@@ -1,4 +1,7 @@
 class Beam(object):
+    """
+    A wrapper class for beam searching
+    """
     def __init__(self, seq, score):
         super(Beam, self).__init__()
         
