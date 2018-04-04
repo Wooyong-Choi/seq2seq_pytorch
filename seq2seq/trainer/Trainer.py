@@ -40,7 +40,7 @@ class Trainer(object):
         start = time.time()
         
         self.data_loader = DataLoader(
-            dataset=dataset,
+            dataset=self.dataset,
             batch_size=batch_size,
             collate_fn=sorted_collate_fn,
             num_workers=16
