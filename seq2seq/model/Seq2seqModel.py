@@ -8,6 +8,10 @@ from .DecoderRNN import DecoderRNN
 from seq2seq.utils import Beam
 
 class Seq2seqModel(nn.Module):
+    """
+    A seq2seq model has encoder and encoder using RNN.
+    """
+    
     def __init__(self, name, input_size, hidden_size, output_size, max_length, gpu_id=-1):
         super(Seq2seqModel, self).__init__()
         self.name = name
@@ -44,7 +48,6 @@ class Seq2seqModel(nn.Module):
         Returns:
         --------
         decoder_outputs : teacher forced outputs of decoder
-        #loss: NLL loss of log-softmax value of generated and target sequence.
         """
             
         cur_batch_size = encoder_inputs.size()[0]  # batch_first
@@ -77,7 +80,7 @@ class Seq2seqModel(nn.Module):
 
         # indices -> word sequence
         decoded_words = []
-        for idx in beam_result.seq:
+        for idx in beam_result:
             if idx == tgt_vocab.eos_idx:
                 decoded_words.append(tgt_vocab.eos_tok)
                 break
@@ -93,22 +96,22 @@ class Seq2seqModel(nn.Module):
         """
         # list of [[sequence] and score]
         beam_board = [Beam([SOS_IDX], 0)]
-        eos_best = Beam(None, float('inf'))   # neg inf score
+        eos_best = Beam(None, float('-inf'))   # neg inf score
                 
         # with beam search
         for i in range(self.max_length+1):
             # beam result can be searched beam board or final result of beam search
             decoder_hidden, beam_result, eos_result = self._beamSearchStep(decoder_hidden, beam_board, beam_size, EOS_IDX);
             
-            # if final result, return it
-            if isinstance(beam_result, Beam):
-                return beam_result
-            
             if eos_result is not None:
                 eos_best = eos_result if eos_best.score < eos_result.score else eos_best
                 
             # select top 5 candidates in our_socre_board
             beam_board = sorted(beam_result, key=lambda x: x.score, reverse=True)[:beam_size]
+            
+            # if first ranked sequence is ended with EOS_IDX, return it
+            if beam_board[0].seq[-1] == EOS_IDX:
+                return beam_board[0].seq
         
         # find beam which has EOS_IDX at the end
         for beam in beam_board:
@@ -126,7 +129,7 @@ class Seq2seqModel(nn.Module):
         cur_beam_board = []
         
         # keep sequence which end with eos
-        cur_eos_best = Beam([], -sys.maxsize-1)   # neg inf score
+        cur_eos_best = Beam(None, float('-inf'))   # neg inf score
         
         # select each candidate
         for cur_beam in beam_board: # [[sequence], score]
@@ -143,21 +146,18 @@ class Seq2seqModel(nn.Module):
             decoder_output = decoder_output.view(-1) # 1*1*10000 -> 10000
             
             # find candidates of candidates
-            topVecs, topIdxs = decoder_output.topk(beam_size)
-            
-            # if first ranked next word is eos, stop beam search
-            if topIdxs.data[0] == EOS_IDX:
-                return decoder_hidden, Beam(cur_seq+[EOS_IDX], 0), None
-              
+            topVecs, topIdxs = decoder_output.sort(descending=True)
             for next, next_score in zip(topIdxs.data, topVecs.data):    
                 # Append beams to score board
                 seq = cur_seq + [next]
                 score = cur_score + next_score  # log softmax
                 beam = Beam(seq, score)
                 
-                if next == EOS_IDX:
+                if len(cur_beam_board) >= beam_size:
+                    break
+                elif next == EOS_IDX:
                     cur_eos_best = beam if cur_eos_best.score < beam.score else cur_eos_best
-                
-                cur_beam_board.append(beam)
+                else:
+                    cur_beam_board.append(beam)
                 
         return decoder_hidden, cur_beam_board, cur_eos_best
