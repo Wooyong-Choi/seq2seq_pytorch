@@ -7,10 +7,11 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.autograd import Variable
 from torch.utils.data import DataLoader
-#from torch.nn.utils.rnn import pad_sequence   pytorch 0.3.0 or later
 
 from seq2seq.dataset import sorted_collate_fn
+from seq2seq.utils import masked_cross_entropy
 
+from tqdm import tqdm
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 
@@ -55,35 +56,39 @@ class Trainer(object):
         print_loss_total = 0  # Reset every print_every
         plot_loss_total = 0  # Reset every plot_every
     
-        for epoch in range(1, num_epoch + 1):
-            for src_batch, tgt_batch, encoder_input_length in self.data_loader:
+        for epoch in tqdm(range(1, num_epoch + 1)):
+            for src_batch, tgt_batch, src_length, tgt_length in self.data_loader:
                 optimizer.zero_grad()
                 
                 # prepare batch data
-                encoder_input = self.prepareBatch(src_batch)
-                decoder_input = self.prepareBatch(tgt_batch, appendSOS=True)
-                decoder_target = self.prepareBatch(tgt_batch, appendEOS=True)
+                src_batch = self.prepareBatch(src_batch)
+                tgt_batch_sos = self.prepareBatch(tgt_batch, appendSOS=True)
+                tgt_batch_eos = self.prepareBatch(tgt_batch, appendEOS=True)
                 if self.gpu_id != -1:
-                    encoder_input = encoder_input.cuda(self.gpu_id)
-                    decoder_input = decoder_input.cuda(self.gpu_id)
-                    decoder_target = decoder_target.cuda(self.gpu_id)
-        
+                    src_batch = src_batch.cuda(self.gpu_id)
+                    tgt_batch_sos = tgt_batch_sos.cuda(self.gpu_id)
+                    tgt_batch_eos = tgt_batch_eos.cuda(self.gpu_id)
+                    
+                
                 # forward model
-                decoder_outputs = self.model(encoder_input, decoder_input, encoder_input_length)
+                decoder_outputs = self.model(src_batch, tgt_batch_sos, src_length)
             
                 # calculate loss and back-propagate
-                loss = criterion(decoder_outputs.contiguous().view(-1, self.model.output_size), decoder_target.contiguous().view(-1))
+                start_time = time.time()
+                #print(decoder_outputs.size(), tgt_batch_eos.size())
+                #loss = masked_cross_entropy(decoder_outputs.contiguous(), tgt_batch_eos.contiguous(), tgt_length, self.gpu_id)
+                loss = criterion(decoder_outputs.contiguous().view(-1, self.model.output_size), tgt_batch_eos.contiguous().view(-1))
                 loss.backward()
     
                 optimizer.step()
-
+        
                 print_loss_total += loss.data[0]
                 plot_loss_total += loss.data[0]
     
             if epoch % self.print_interval == 0:
                 print_loss_avg = print_loss_total / self.print_interval
+                print('epoch:%3d (%3d%%) time:%20s loss:%.4f' % (epoch, epoch/num_epoch*100, self._timeSince(start, epoch/num_epoch), print_loss_avg))
                 print_loss_total = 0
-                print('epoch:%3d (%3d%%) time:%s loss:%.4f' % (epoch, epoch/num_epoch*100, self._timeSince(start, epoch/num_epoch), print_loss_avg))
                 
             if epoch % self.plot_interval == 0:
                 plot_loss_avg = plot_loss_total / self.plot_interval
@@ -100,47 +105,18 @@ class Trainer(object):
     def prepareBatch(self, batch, appendSOS=False, appendEOS=False):
         SOS_IDX = self.data_loader.dataset.src_vocab.sos_idx
         EOS_IDX = self.data_loader.dataset.src_vocab.eos_idx
+        PAD_IDX = self.data_loader.dataset.src_vocab.pad_idx
         
         batch_list = []
         for indices in batch:
+            pad_num = self.dataset.max_length - len(indices)
             if appendSOS:
-                batch_list.append(Variable(torch.LongTensor([SOS_IDX]+indices)))
+                batch_list.append(torch.LongTensor([SOS_IDX]+indices+([PAD_IDX]*pad_num)))
             elif appendEOS:
-                batch_list.append(Variable(torch.LongTensor(indices+[EOS_IDX])))
+                batch_list.append(torch.LongTensor(indices+[EOS_IDX]+([PAD_IDX]*pad_num)))
             else:
-                batch_list.append(Variable(torch.LongTensor(indices)))
-        batch_list = sorted(batch_list, key=lambda x: x.size(0), reverse=True)
-        return self._pad_sequence(batch_list, batch_first=True)
-    
-    # from pytorch 0.3.0
-    def _pad_sequence(self, sequences, batch_first=False, padding_value=0):
-        """
-        Pad a list of variable length Variables with zero
-        """
-        # assuming trailing dimensions and type of all the Variables
-        # in sequences are same and fetching those from sequences[0]
-        max_size = sequences[0].size()
-        max_len, trailing_dims = max_size[0], max_size[1:]
-        prev_l = max_len
-        if batch_first:
-            out_dims = (len(sequences), max_len) + trailing_dims
-        else:
-            out_dims = (max_len, len(sequences)) + trailing_dims
-        
-        out_variable = Variable(sequences[0].data.new(*out_dims).fill_(padding_value))
-        for i, variable in enumerate(sequences):
-            length = variable.size(0)
-            # temporary sort check, can be removed when we handle sorting internally
-            if prev_l < length:
-                raise ValueError("lengths array has to be sorted in decreasing order")
-            prev_l = length
-            # use index notation to prevent duplicate references to the variable
-            if batch_first:
-                out_variable[i, :length, ...] = variable
-            else:
-                out_variable[:length, i, ...] = variable
-        
-        return out_variable
+                batch_list.append(torch.LongTensor(indices+([PAD_IDX]*(pad_num+1))))
+        return Variable(torch.stack(batch_list, dim=0))
     
     def _save_checkpoint(self, epoch):
         checkpoint_path = self.expr_path+self.model.name+str(epoch)+'.model'

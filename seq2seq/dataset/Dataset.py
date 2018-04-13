@@ -32,10 +32,11 @@ class Dataset(Dataset):
         self.test_pairs = None
         
     def __getitem__(self, index):
-        src_indices = self.src_vocab.sequence_to_indices(self.train_pairs[index][0])
-        tgt_indices = self.tgt_vocab.sequence_to_indices(self.train_pairs[index][1])
+        src_indices = self.src_vocab.sentence_to_indices(self.train_pairs[index][0])
+        tgt_indices = self.tgt_vocab.sentence_to_indices(self.train_pairs[index][1])
         src_lengths = len(self.train_pairs[index][0])
-        return (src_indices, tgt_indices, src_lengths)
+        tgt_lengths = len(self.train_pairs[index][1])
+        return (src_indices, tgt_indices, src_lengths, tgt_lengths)
                 
     def __len__(self):
         return len(self.train_pairs)
@@ -68,7 +69,7 @@ class Dataset(Dataset):
         print("Success!")
     
     def _normalizeString(self, s):
-        s = re.sub('[^가-힝0-9a-zA-Z\\s]', '', s)
+        s = re.sub('[^가-힝0-9a-zA-Z,.!?\\s]', '', s)
         return s
     
     def _filterPairs(self, tagger):
@@ -100,7 +101,13 @@ def sorted_collate_fn(batch):
     for packing padded sequence
     """
     batch = sorted(batch, key=lambda x: len(x[0]), reverse=True)
-    src_indices = [item[0] for item in batch]
-    tgt_indices = [item[1] for item in batch]
-    src_lengths = [item[2] for item in batch]
-    return [src_indices, tgt_indices, src_lengths]
+    src_indices = []
+    tgt_indices = []
+    src_lengths = []
+    tgt_lengths = []
+    for item in batch:
+        src_indices.append(item[0])
+        tgt_indices.append(item[1])
+        src_lengths.append(item[2]+1)  # for sos
+        tgt_lengths.append(item[3]+1)  # for eos
+    return [src_indices, tgt_indices, src_lengths, tgt_lengths]

@@ -50,7 +50,7 @@ class Vocab:
         # update a num of words
         self.n_words = vocab_size
         
-    def sequence_to_indices(self, sentence):
+    def sentence_to_indices(self, sentence):
         return [self.word2index[word] if word in self.word2index else self.unk_idx for word in sentence]
     
     def indices_to_sentence(self, indices):

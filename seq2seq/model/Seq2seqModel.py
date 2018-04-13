@@ -12,152 +12,145 @@ class Seq2seqModel(nn.Module):
     A seq2seq model has encoder and encoder using RNN.
     """
     
-    def __init__(self, name, input_size, hidden_size, output_size, max_length, gpu_id=-1):
+    def __init__(self, name, input_size, hidden_size, output_size, max_length, bidirectional=False, dropout_p=0.1, gpu_id=-1):
         super(Seq2seqModel, self).__init__()
         self.name = name
-        
         self.input_size = input_size
         self.hidden_size = hidden_size
         self.output_size = output_size
-        
+        self.n_layers = 1
+        self.bidirectional = bidirectional
+        self.num_direction = 2 if bidirectional else 1
+        self.dropout_p = dropout_p
         self.max_length = max_length
         self.gpu_id = gpu_id
         
         """
         Encoder uses GRU with embedding layer and packing sequence
         """
-        self.encoder = EncoderRNN(input_size, hidden_size)
+        self.encoder = EncoderRNN(input_size, hidden_size, self.n_layers, bidirectional)
         
         """
         Decoder uses GRU with embedding layer, fully connected layer and log-softmax
         """
-        self.decoder = DecoderRNN(hidden_size, output_size)
+        self.decoder = DecoderRNN(hidden_size, output_size, self.n_layers, max_length, dropout_p, gpu_id)
 
         if self.gpu_id != -1:
             self.cuda(self.gpu_id)
             
-    def forward(self, encoder_inputs, decoder_inputs, encoder_inputs_lengths):
+    def forward(self, src_batch, tgt_batch, src_batch_lengths):
         """
         Params:
         -------
-        encoder_input: sequence of word indices,  "<SOS> How are you? <PAD>"
-        decoder_input: sequence of word indices,  "<SOS> I'm fine. <PAD>"
-        decoder_target: sequence of word indices, "I'm fine. <EOS> <PAD>"
-        encoder_inputs_lengths: lengths of encoder inputs to use pack_padded_sequence
+        src_batch: sequence of word indices,  "<SOS> How are you? <PAD>"
+        tgt_batch: sequence of word indices,  "I'm fine. <EOS> <PAD>"
+        src_batch_lengths: lengths of source batch to use pack_padded_sequence
+        tgt_batch_lengths: lengths of target batch to use masked cross entropy
         
         Returns:
         --------
         decoder_outputs : teacher forced outputs of decoder
         """
-            
-        cur_batch_size = encoder_inputs.size()[0]  # batch_first
+        cur_batch_size = src_batch.size()[0]  # batch_first
         
-        # Encoder : sentence -> context
-        encoder_hidden = self.encoder.initHidden(cur_batch_size, self.gpu_id)
-        encoder_outputs, encoder_hidden = self.encoder(encoder_inputs, encoder_inputs_lengths, encoder_hidden)
+        # Encoder : sentence -> context        
+        encoder_hidden = self.initHidden(cur_batch_size)
+        encoder_outputs, encoder_hidden = self.encoder(src_batch, src_batch_lengths, encoder_hidden)
         
         # Decoder : context -> response
-        decoder_hidden = encoder_hidden
-        decoder_outputs, decoder_hidden = self.decoder(decoder_inputs, decoder_hidden)
+        if self.bidirectional:
+            decoder_hidden = encoder_hidden[-self.decoder.n_layers:]
+        else:
+            decoder_hidden = encoder_hidden
+        decoder_context = encoder_outputs
+        decoder_outputs, decoder_hidden, attn_weights = self.decoder(tgt_batch, decoder_hidden, decoder_context)
         
         return decoder_outputs
     
-    def sampleResponce(self, sentence, tagger, src_vocab, tgt_vocab, beam_size=5):
+    def initHidden(self, cur_batch_size):
+        result = Variable(torch.zeros(1 * self.num_direction, cur_batch_size, self.hidden_size))
+        if self.gpu_id != -1:
+            return result.cuda(self.gpu_id)
+        else:
+            return result
+    
+    def sampleResponce(self, indices, src_vocab, tgt_vocab, beam_size=-1):
         self.eval()
         
-        encoder_input = torch.LongTensor(src_vocab.sequence_to_indices(sentence)).unsqueeze(0)
-        encoder_input = Variable(encoder_input)
+        encoder_input = Variable(torch.LongTensor(indices)).unsqueeze(0)
         encoder_input = encoder_input.cuda(self.gpu_id) if self.gpu_id != -1 else encoder_input
         encoder_input_length = [encoder_input.size()[1]]
         
         # Encoder
-        encoder_hidden = self.encoder.initHidden(1, gpu_id=self.gpu_id)  # batch_size = 1
+        encoder_hidden = self.initHidden(1)  # batch_size = 1
         encoder_outputs, encoder_hidden = self.encoder(encoder_input, encoder_input_length, encoder_hidden)
     
         # Decoder
-        decoder_hidden = encoder_hidden
-        beam_result = self._decodeWithBeamSearch(decoder_hidden, beam_size, tgt_vocab.sos_idx, tgt_vocab.eos_idx)
-
+        if self.bidirectional:
+            decoder_hidden = encoder_hidden[-self.decoder.n_layers:]
+        else:
+            decoder_hidden = encoder_hidden
+        decoder_context = encoder_outputs
+        
+        # top 1 decoder
+        if beam_size == -1:
+            decoded = [tgt_vocab.sos_idx]
+            for i in range(self.max_length+1):
+                decoder_input = Variable(torch.LongTensor([decoded[-1]])).unsqueeze(0)
+                decoder_input = decoder_input.cuda(self.gpu_id) if self.gpu_id != -1 else decoder_input
+            
+                decoder_output, decoder_hidden, attn_weight = self.decoder(decoder_input, decoder_hidden, decoder_context)
+                decoder_output = decoder_output.view(-1) # 1*1*10000 -> 10000
+                
+                # find candidates of candidates
+                topVecs, topIdxs = decoder_output.topk(1)                
+                decoded.append(topIdxs.data[0])
+                
+                if topIdxs.data[0] == tgt_vocab.eos_idx:
+                    break
+             
+        # top k decoder with beam search
+        else:
+            elected_cand = self._decodeWithBeamSearch(decoder_hidden, decoder_context, beam_size, tgt_vocab.sos_idx, tgt_vocab.eos_idx)
+            decoded = elected_cand.seq
+    
         # indices -> word sequence
         decoded_words = []
-        for idx in beam_result:
-            if idx == tgt_vocab.eos_idx:
-                decoded_words.append(tgt_vocab.eos_tok)
-                break
-            else:
-                decoded_words.append(tgt_vocab.index2word[idx])
+        for idx in decoded:
+            decoded_words.append(tgt_vocab.index2word[idx])
                 
         self.train()
         return decoded_words
     
-    def _decodeWithBeamSearch(self, decoder_hidden, beam_size, SOS_IDX, EOS_IDX):
+    def _decodeWithBeamSearch(self, decoder_hidden, decoder_context, beam_size, SOS_IDX, EOS_IDX):
         """
         Find best sequence using beam search
         """
-        # list of [[sequence] and score]
-        beam_board = [Beam([SOS_IDX], 0)]
-        eos_best = Beam(None, float('-inf'))   # neg inf score
-                
+        beam = Beam(beam_size, decoder_hidden, SOS_IDX, EOS_IDX)
+
         # with beam search
         for i in range(self.max_length+1):
             # beam result can be searched beam board or final result of beam search
-            decoder_hidden, beam_result, eos_result = self._beamSearchStep(decoder_hidden, beam_board, beam_size, EOS_IDX);
-            
-            if eos_result is not None:
-                eos_best = eos_result if eos_best.score < eos_result.score else eos_best
-                
-            # select top 5 candidates in our_socre_board
-            beam_board = sorted(beam_result, key=lambda x: x.score, reverse=True)[:beam_size]
-            
+            self._beamSearchStep(beam, decoder_context)
             # if first ranked sequence is ended with EOS_IDX, return it
-            if beam_board[0].seq[-1] == EOS_IDX:
-                return beam_board[0].seq
-        
-        # find beam which has EOS_IDX at the end
-        for beam in beam_board:
-            if beam.seq[-1] == EOS_IDX:
-                return beam.seq
-            
-        # if there's no such beam, return eos_best
-        if eos_best.seq is not None:
-            return eos_best.seq
-        # failure case, no sequence ended with eos
-        else:
-            return beam_board[0].seq
+            if beam.early_end is not None:
+                return beam.early_end
+        # no early end
+        return beam.getFinalResult()
     
-    def _beamSearchStep(self, decoder_hidden, beam_board, beam_size, EOS_IDX):
-        cur_beam_board = []
-        
-        # keep sequence which end with eos
-        cur_eos_best = Beam(None, float('-inf'))   # neg inf score
-        
+    def _beamSearchStep(self, beam, decoder_context):
+        pre_candidates = []
         # select each candidate
-        for cur_beam in beam_board: # [[sequence], score]
-            cur_seq = cur_beam.seq
-            cur_score = cur_beam.score
-            
-            candidate = cur_seq[-1]
-            
+        for cur_cand_info in beam.candidates:            
             # find beams
-            decoder_input = Variable(torch.LongTensor([[candidate]]))
+            decoder_input = Variable(torch.LongTensor([cur_cand_info.getCandidate()])).unsqueeze(0)
             decoder_input = decoder_input.cuda(self.gpu_id) if self.gpu_id != -1 else decoder_input
         
-            decoder_output, decoder_hidden = self.decoder(decoder_input, decoder_hidden)
+            decoder_output, decoder_hidden, attn_weight = self.decoder(decoder_input, cur_cand_info.hidden, decoder_context)
             decoder_output = decoder_output.view(-1) # 1*1*10000 -> 10000
             
             # find candidates of candidates
             topVecs, topIdxs = decoder_output.sort(descending=True)
-            for next, next_score in zip(topIdxs.data, topVecs.data):    
-                # Append beams to score board
-                seq = cur_seq + [next]
-                score = cur_score + next_score  # log softmax
-                beam = Beam(seq, score)
-                
-                if len(cur_beam_board) >= beam_size:
-                    break
-                elif next == EOS_IDX:
-                    cur_eos_best = beam if cur_eos_best.score < beam.score else cur_eos_best
-                else:
-                    cur_beam_board.append(beam)
-                
-        return decoder_hidden, cur_beam_board, cur_eos_best
+            pre_candidates += beam.electPreCandidates(topVecs, topIdxs, cur_cand_info, decoder_hidden)
+            
+        beam.electCandidates(pre_candidates)
