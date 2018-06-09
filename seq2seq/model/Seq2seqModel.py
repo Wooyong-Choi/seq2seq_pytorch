@@ -12,7 +12,7 @@ class Seq2seqModel(nn.Module):
     A seq2seq model has encoder and encoder using RNN.
     """
     
-    def __init__(self, name, input_size, hidden_size, output_size, max_length, bidirectional=False, dropout_p=0.1, gpu_id=-1):
+    def __init__(self, name, input_size, hidden_size, output_size, max_length, bidirectional=False, use_attention=False, gpu_id=-1):
         super(Seq2seqModel, self).__init__()
         self.name = name
         self.input_size = input_size
@@ -21,19 +21,20 @@ class Seq2seqModel(nn.Module):
         self.n_layers = 1
         self.bidirectional = bidirectional
         self.num_direction = 2 if bidirectional else 1
-        self.dropout_p = dropout_p
+        self.use_attention = use_attention
         self.max_length = max_length
         self.gpu_id = gpu_id
         
         """
         Encoder uses GRU with embedding layer and packing sequence
         """
-        self.encoder = EncoderRNN(input_size, hidden_size, self.n_layers, bidirectional)
+        self.encoder = EncoderRNN(input_size, hidden_size, self.n_layers, self.bidirectional)
         
         """
         Decoder uses GRU with embedding layer, fully connected layer and log-softmax
         """
-        self.decoder = DecoderRNN(hidden_size, output_size, self.n_layers, max_length, dropout_p, gpu_id)
+        self.decoder = DecoderRNN(self.hidden_size*2 if self.bidirectional else self.hidden_size, self.output_size, self.n_layers,
+                                  self.max_length, self.bidirectional, self.use_attention, self.gpu_id)
 
         if self.gpu_id != -1:
             self.cuda(self.gpu_id)
@@ -42,8 +43,8 @@ class Seq2seqModel(nn.Module):
         """
         Params:
         -------
-        src_batch: sequence of word indices,  "<SOS> How are you? <PAD>"
-        tgt_batch: sequence of word indices,  "I'm fine. <EOS> <PAD>"
+        src_batch: sequence of word indices,  "How are you? <PAD>"
+        tgt_batch: sequence of word indices,  "<SOS> I'm fine. <PAD>"
         src_batch_lengths: lengths of source batch to use pack_padded_sequence
         tgt_batch_lengths: lengths of target batch to use masked cross entropy
         
@@ -53,15 +54,12 @@ class Seq2seqModel(nn.Module):
         """
         cur_batch_size = src_batch.size()[0]  # batch_first
         
-        # Encoder : sentence -> context        
+        # Encoder : sentence -> context
         encoder_hidden = self.initHidden(cur_batch_size)
         encoder_outputs, encoder_hidden = self.encoder(src_batch, src_batch_lengths, encoder_hidden)
         
         # Decoder : context -> response
-        if self.bidirectional:
-            decoder_hidden = encoder_hidden[-self.decoder.n_layers:]
-        else:
-            decoder_hidden = encoder_hidden
+        decoder_hidden = encoder_hidden
         decoder_context = encoder_outputs
         decoder_outputs, decoder_hidden, attn_weights = self.decoder(tgt_batch, decoder_hidden, decoder_context)
         
@@ -86,10 +84,7 @@ class Seq2seqModel(nn.Module):
         encoder_outputs, encoder_hidden = self.encoder(encoder_input, encoder_input_length, encoder_hidden)
     
         # Decoder
-        if self.bidirectional:
-            decoder_hidden = encoder_hidden[-self.decoder.n_layers:]
-        else:
-            decoder_hidden = encoder_hidden
+        decoder_hidden = encoder_hidden
         decoder_context = encoder_outputs
         
         # top 1 decoder
@@ -103,10 +98,10 @@ class Seq2seqModel(nn.Module):
                 decoder_output = decoder_output.view(-1) # 1*1*10000 -> 10000
                 
                 # find candidates of candidates
-                topVecs, topIdxs = decoder_output.topk(1)                
-                decoded.append(topIdxs.data[0])
+                topVecs, topIdxs = decoder_output.topk(1)
+                decoded.append(topIdxs.item())
                 
-                if topIdxs.data[0] == tgt_vocab.eos_idx:
+                if topIdxs.item() == tgt_vocab.eos_idx:
                     break
              
         # top k decoder with beam search

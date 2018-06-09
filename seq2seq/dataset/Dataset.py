@@ -31,6 +31,8 @@ class Dataset(Dataset):
         self.train_pairs = None
         self.test_pairs = None
         
+        self._prepareData()
+        
     def __getitem__(self, index):
         src_indices = self.src_vocab.sentence_to_indices(self.train_pairs[index][0])
         tgt_indices = self.tgt_vocab.sentence_to_indices(self.train_pairs[index][1])
@@ -41,11 +43,11 @@ class Dataset(Dataset):
     def __len__(self):
         return len(self.train_pairs)
     
-    def prepareData(self, tagger, reverse=False):
+    def _prepareData(self, reverse=False):
         self._readData()
         print("Read %s sentence pairs" % len(self.pairs))
         
-        self._filterPairs(tagger)
+        self._filterPairs()
         print("Trim data to %s sentence pairs" % len(self.pairs))
         
         self._prepareVocab()
@@ -61,22 +63,19 @@ class Dataset(Dataset):
         tgt_lines = open(self.tgt_file_path, 'r', encoding='utf-8').readlines()
         
         # Split every line into pairs and normalize
-        self.pairs = [[self._normalizeString(src_lines[i][:-1]), self._normalizeString(tgt_lines[i][:-1])] for i in range(len(src_lines))]
+        self.pairs = [[src_lines[i].strip(), tgt_lines[i].strip()] for i in range(len(src_lines))]
     
         # Reverse pairs
         if reverse: self.pairs = [list(reversed(p)) for p in pairs]
     
         print("Success!")
     
-    def _normalizeString(self, s):
-        s = re.sub('[^가-힝0-9a-zA-Z,.!?\\s]', '', s)
-        return s
-    
-    def _filterPairs(self, tagger):
-        self.pairs = [[tagger.morphs(pair[0]), tagger.morphs(pair[1])] for pair in self.pairs if self._filterPair(pair)]
+    def _filterPairs(self):
+        self.pairs = [[pair[0].split(' '), pair[1].split(' ')] for pair in self.pairs]
+        self.pairs = [pair for pair in self.pairs if self._filterPair(pair)]
         
     def _filterPair(self, p):
-        return len(p[0]) <= self.max_length and len(p[1]) <= self.max_length
+        return len(p[0]) <= self.max_length and len(p[1]) <= self.max_length and len(p[0]) > 1 and len(p[1]) > 1
     
     def _prepareVocab(self):
         for pair in self.pairs:
@@ -97,7 +96,7 @@ class Dataset(Dataset):
                                                               
 def sorted_collate_fn(batch):
     """
-    Sort data using source sentences lengths in decreasing order
+    Sort data in decreasing order of source sentences lengths
     for packing padded sequence
     """
     batch = sorted(batch, key=lambda x: len(x[0]), reverse=True)

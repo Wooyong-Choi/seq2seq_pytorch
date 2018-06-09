@@ -16,9 +16,9 @@ class Beam(object):
     def electPreCandidates(self, topVecs, topIdxs, cur_cand_info, hidden):
         pre_candidates = []
             
-        for next, next_score in zip(topIdxs.data, topVecs.data):
+        for next, next_score in zip(topIdxs, topVecs):
             # Append beams to score board
-            pre_cand = Candidate(cur_cand_info.seq + [next], cur_cand_info.score + next_score, hidden)
+            pre_cand = Candidate(cur_cand_info.seq + [next.item()], cur_cand_info.score + next_score.item(), hidden)
             
             if len(pre_candidates) >= self.beam_size:
                 break

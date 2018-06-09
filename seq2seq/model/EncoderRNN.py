@@ -8,7 +8,7 @@ class EncoderRNN(nn.Module):
         super(EncoderRNN, self).__init__()
         self.input_size = input_size
         self.hidden_size = hidden_size
-        self.n_lyaers = n_layers
+        self.n_layers = n_layers
         self.bidirectional = bidirectional
 
         self.embedding = nn.Embedding(input_size, hidden_size, padding_idx=0)
@@ -22,6 +22,4 @@ class EncoderRNN(nn.Module):
         packed = pack_padded_sequence(embedded, input_lens, batch_first=True)
         outputs, hidden = self.gru(packed, hidden)
         outputs, output_lengths = pad_packed_sequence(outputs, batch_first=True)
-        if self.bidirectional:
-            outputs = outputs[:, :, :self.hidden_size] + outputs[:, :, self.hidden_size:]
         return outputs, hidden
