@@ -99,8 +99,9 @@ class Trainer(object):
                 
             #if epoch % self.eval_interval == 0:
                 # eval
-                
-        self._showPlot(plot_losses)
+        
+        if self.plot_interval != -1:
+            self._showPlot(plot_losses)
         
         
     #TODO: 밑에 애들 utils 로 옮길까

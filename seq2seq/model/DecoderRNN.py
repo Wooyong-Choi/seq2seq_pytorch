@@ -43,7 +43,7 @@ class DecoderRNN(nn.Module):
 
         # Finally predict next token (Luong eq. 6, without softmax)
         outputs = self.out(outputs.contiguous().view(-1, self.hidden_size))
-        outputs = self.softmax(outputs).view(cur_batch_size, max_len, -1)
+        outputs = self.softmax(outputs, dim=1).view(cur_batch_size, max_len, -1)
         
         # Return final output, hidden state, and attention weights (for visualization)
         return outputs, hidden, attn_weights

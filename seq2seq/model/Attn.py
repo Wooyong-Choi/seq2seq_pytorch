@@ -34,8 +34,8 @@ class Attn(nn.Module):
         if self.gpu_id != -1:
             attn_weights = attn_weights.cuda(self.gpu_id)
 
-        attn_weights = F.softmax(attn_weights)
-        
+        attn_weights = F.softmax(attn_weights, dim=1)
+
         context = torch.bmm(attn_weights, encoder_outputs)
         
         # Attentional vector using the RNN hidden state and context vector
