@@ -9,7 +9,6 @@ from torch.autograd import Variable
 from torch.utils.data import DataLoader
 
 from seq2seq.dataset import sorted_collate_fn
-from seq2seq.utils import masked_cross_entropy
 
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
