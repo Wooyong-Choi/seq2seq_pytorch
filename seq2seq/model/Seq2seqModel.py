@@ -21,7 +21,6 @@ class Seq2seqModel(nn.Module):
         self.n_layers = 1
         self.bidirectional = bidirectional
         self.num_direction = 2 if bidirectional else 1
-        self.use_attention = use_attention
         self.max_length = max_length
         self.gpu_id = gpu_id
         
@@ -34,7 +33,7 @@ class Seq2seqModel(nn.Module):
         Decoder uses GRU with embedding layer, fully connected layer and log-softmax
         """
         self.decoder = DecoderRNN(self.hidden_size*2 if self.bidirectional else self.hidden_size, self.output_size, self.n_layers,
-                                  self.max_length, self.bidirectional, self.use_attention, self.gpu_id)
+                                  self.max_length, self.bidirectional, self.gpu_id)
 
         if self.gpu_id != -1:
             self.cuda(self.gpu_id)
@@ -87,14 +86,17 @@ class Seq2seqModel(nn.Module):
         decoder_hidden = encoder_hidden
         decoder_context = encoder_outputs
         
+        attn_weights = []
+        
         # top 1 decoder
         if beam_size == -1:
             decoded = [tgt_vocab.sos_idx]
             for i in range(self.max_length+1):
                 decoder_input = Variable(torch.LongTensor([decoded[-1]])).unsqueeze(0)
                 decoder_input = decoder_input.cuda(self.gpu_id) if self.gpu_id != -1 else decoder_input
-            
+                
                 decoder_output, decoder_hidden, attn_weight = self.decoder(decoder_input, decoder_hidden, decoder_context)
+                attn_weights.append(attn_weight.squeeze(1).detach().cpu())
                 decoder_output = decoder_output.view(-1) # 1*1*10000 -> 10000
                 
                 # find candidates of candidates
@@ -103,11 +105,12 @@ class Seq2seqModel(nn.Module):
                 
                 if topIdxs.item() == tgt_vocab.eos_idx:
                     break
-             
         # top k decoder with beam search
         else:
             elected_cand = self._decodeWithBeamSearch(decoder_hidden, decoder_context, beam_size, tgt_vocab.sos_idx, tgt_vocab.eos_idx)
             decoded = elected_cand.seq
+            
+        attn_weights = torch.cat(attn_weights, dim=0)
     
         # indices -> word sequence
         decoded_words = []
@@ -115,7 +118,7 @@ class Seq2seqModel(nn.Module):
             decoded_words.append(tgt_vocab.index2word[idx])
                 
         self.train()
-        return decoded_words
+        return decoded_words, attn_weights
     
     def _decodeWithBeamSearch(self, decoder_hidden, decoder_context, beam_size, SOS_IDX, EOS_IDX):
         """

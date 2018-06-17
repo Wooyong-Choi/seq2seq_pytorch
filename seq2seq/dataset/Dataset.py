@@ -1,6 +1,6 @@
 import re
 import sys
-from multiprocessing.dummy import Pool as ThreadPool
+from operator import itemgetter
 
 from tqdm import tqdm
 from torch.utils.data import Dataset
@@ -14,7 +14,7 @@ class Dataset(Dataset):
     This class is inheriting Dataset class in torch.utils.data.
     """
 
-    def __init__(self, src_file_path, tgt_file_path, max_length, src_vocab_size=sys.maxsize, tgt_vocab_size=sys.maxsize):
+    def __init__(self, src_file_path, tgt_file_path, max_length, max_cut=False, src_vocab_size=sys.maxsize, tgt_vocab_size=sys.maxsize):
         super(Dataset, self).__init__()
         
         self.src_file_path = src_file_path
@@ -31,7 +31,7 @@ class Dataset(Dataset):
         self.train_pairs = None
         self.test_pairs = None
         
-        self._prepareData()
+        self._prepareData(max_cut=max_cut)
         
     def __getitem__(self, index):
         src_indices = self.src_vocab.sentence_to_indices(self.train_pairs[index][0])
@@ -43,11 +43,11 @@ class Dataset(Dataset):
     def __len__(self):
         return len(self.train_pairs)
     
-    def _prepareData(self, reverse=False):
+    def _prepareData(self, max_cut):
         self._readData()
         print("Read %s sentence pairs" % len(self.pairs))
         
-        self._filterPairs()
+        self._filterPairs(max_cut)
         print("Trim data to %s sentence pairs" % len(self.pairs))
         
         self._prepareVocab()
@@ -70,9 +70,12 @@ class Dataset(Dataset):
     
         print("Success!")
     
-    def _filterPairs(self):
+    def _filterPairs(self, max_cut):
         self.pairs = [[pair[0].split(' '), pair[1].split(' ')] for pair in self.pairs]
-        self.pairs = [pair for pair in self.pairs if self._filterPair(pair)]
+        if max_cut:
+            self.pairs = [[pair[0][:self.max_length], pair[1][:self.max_length]] for pair in self.pairs]
+        else:
+            self.pairs = [pair for pair in self.pairs if self._filterPair(pair)]
         
     def _filterPair(self, p):
         return len(p[0]) <= self.max_length and len(p[1]) <= self.max_length and len(p[0]) > 1 and len(p[1]) > 1
@@ -107,6 +110,6 @@ def sorted_collate_fn(batch):
     for item in batch:
         src_indices.append(item[0])
         tgt_indices.append(item[1])
-        src_lengths.append(item[2]+1)  # for sos
-        tgt_lengths.append(item[3]+1)  # for eos
+        src_lengths.append(item[2])
+        tgt_lengths.append(item[3]+1)  # For sos or eos token
     return [src_indices, tgt_indices, src_lengths, tgt_lengths]

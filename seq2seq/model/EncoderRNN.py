@@ -12,7 +12,7 @@ class EncoderRNN(nn.Module):
         self.bidirectional = bidirectional
 
         self.embedding = nn.Embedding(input_size, hidden_size, padding_idx=0)
-        self.gru = nn.GRU(hidden_size, hidden_size, batch_first=True, bidirectional=self.bidirectional)
+        self.rnn = nn.GRU(hidden_size, hidden_size, batch_first=True, bidirectional=self.bidirectional)
 
     def forward(self, input_seqs, input_lens, hidden):
         """
@@ -20,6 +20,6 @@ class EncoderRNN(nn.Module):
         """
         embedded = self.embedding(input_seqs)
         packed = pack_padded_sequence(embedded, input_lens, batch_first=True)
-        outputs, hidden = self.gru(packed, hidden)
+        outputs, hidden = self.rnn(packed) # default zero hidden
         outputs, output_lengths = pad_packed_sequence(outputs, batch_first=True)
         return outputs, hidden

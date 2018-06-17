@@ -62,21 +62,19 @@ class Trainer(object):
                 
                 # prepare batch data
                 src_batch = self.prepareBatch(src_batch)
-                tgt_batch_sos = self.prepareBatch(tgt_batch, appendSOS=True)
-                tgt_batch_eos = self.prepareBatch(tgt_batch, appendEOS=True)
+                tgt_batch = self.prepareBatch(tgt_batch, appendSOS=True, appendEOS=True)
                 if self.gpu_id != -1:
                     src_batch = src_batch.cuda(self.gpu_id)
-                    tgt_batch_sos = tgt_batch_sos.cuda(self.gpu_id)
-                    tgt_batch_eos = tgt_batch_eos.cuda(self.gpu_id)
+                    tgt_batch = tgt_batch.cuda(self.gpu_id)
                 
                 # forward model
-                decoder_outputs = self.model(src_batch, tgt_batch_sos, src_length)
+                decoder_outputs = self.model(src_batch, tgt_batch[:,:-1], src_length)
+                
+                start_time = time.time()
             
                 # calculate loss and back-propagate
-                start_time = time.time()
-                #print(decoder_outputs.size(), tgt_batch_eos.size())
-                #loss = masked_cross_entropy(decoder_outputs.contiguous(), tgt_batch_eos.contiguous(), tgt_length, self.gpu_id)
-                loss = criterion(decoder_outputs.view(-1, self.model.output_size), tgt_batch_eos.view(-1))
+                # tgt_batch[:,1:] : remove SOS tokens in all mini-batch
+                loss = criterion(decoder_outputs.view(-1, self.model.output_size), tgt_batch[:,1:].contiguous().view(-1))
                 loss.backward()
     
                 optimizer.step()
@@ -118,7 +116,7 @@ class Trainer(object):
             elif appendEOS:
                 batch_list.append(torch.LongTensor(indices+[EOS_IDX]+([PAD_IDX]*pad_num)))
             else:
-                batch_list.append(torch.LongTensor(indices+([PAD_IDX]*(pad_num+1))))
+                batch_list.append(torch.LongTensor(indices+([PAD_IDX]*(pad_num))))
         return Variable(torch.stack(batch_list, dim=0))
     
     def _get_eval_loss(self):
@@ -154,7 +152,6 @@ class Trainer(object):
         torch.save(self.model.state_dict(), checkpoint_path)
         
     def _showPlot(self, points):
-        plt.figure()
         fig, ax = plt.subplots()
         # this locator puts ticks at regular intervals
         loc = ticker.MultipleLocator(base=0.2)
