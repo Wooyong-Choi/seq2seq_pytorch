@@ -89,7 +89,7 @@ class Seq2seqModel(nn.Module):
         attn_weights = []
         
         # top 1 decoder
-        if beam_size == -1:
+        if beam_size == -1 or beam_size == 1:
             decoded = [tgt_vocab.sos_idx]
             for i in range(self.max_length+1):
                 decoder_input = Variable(torch.LongTensor([decoded[-1]])).unsqueeze(0)
@@ -109,8 +109,10 @@ class Seq2seqModel(nn.Module):
         else:
             elected_cand = self._decodeWithBeamSearch(decoder_hidden, decoder_context, beam_size, tgt_vocab.sos_idx, tgt_vocab.eos_idx)
             decoded = elected_cand.seq
-            
-        attn_weights = torch.cat(attn_weights, dim=0)
+        
+        # TODO: beam search시 에도 attn visualization
+        if beam_size == -1 or beam_size == 1:
+            attn_weights = torch.cat(attn_weights, dim=0)
     
         # indices -> word sequence
         decoded_words = []

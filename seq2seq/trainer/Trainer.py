@@ -61,7 +61,7 @@ class Trainer(object):
                 
                 # prepare batch data
                 src_batch = self.prepareBatch(src_batch)
-                tgt_batch = self.prepareBatch(tgt_batch, appendSOS=True, appendEOS=True)
+                tgt_batch = self.prepareBatch(tgt_batch, appendSOSEOS=True)
                 if self.gpu_id != -1:
                     src_batch = src_batch.cuda(self.gpu_id)
                     tgt_batch = tgt_batch.cuda(self.gpu_id)
@@ -83,7 +83,7 @@ class Trainer(object):
     
             if epoch % self.print_interval == 0:
                 print_loss_avg = print_loss_total / self.print_interval
-                print('epoch:%3d (%3d%%) time:%20s loss:%.4f' % (epoch, epoch/num_epoch*100, self._timeSince(start, epoch/num_epoch), print_loss_avg))
+                print('epoch:%3d (%3d%%) time:%25s loss:%.4f' % (epoch, epoch/num_epoch*100, self._timeSince(start, epoch/num_epoch), print_loss_avg))
                 print_loss_total = 0
                 
             if epoch % self.plot_interval == 0:
@@ -103,7 +103,7 @@ class Trainer(object):
         
         
     #TODO: 밑에 애들 utils 로 옮길까
-    def prepareBatch(self, batch, appendSOS=False, appendEOS=False):
+    def prepareBatch(self, batch, appendSOSEOS=False):
         SOS_IDX = self.data_loader.dataset.src_vocab.sos_idx
         EOS_IDX = self.data_loader.dataset.src_vocab.eos_idx
         PAD_IDX = self.data_loader.dataset.src_vocab.pad_idx
@@ -111,10 +111,8 @@ class Trainer(object):
         batch_list = []
         for indices in batch:
             pad_num = self.dataset.max_length - len(indices)
-            if appendSOS:
-                batch_list.append(torch.LongTensor([SOS_IDX]+indices+([PAD_IDX]*pad_num)))
-            elif appendEOS:
-                batch_list.append(torch.LongTensor(indices+[EOS_IDX]+([PAD_IDX]*pad_num)))
+            if appendSOSEOS:
+                batch_list.append(torch.LongTensor([SOS_IDX]+indices+[EOS_IDX]+([PAD_IDX]*pad_num)))
             else:
                 batch_list.append(torch.LongTensor(indices+([PAD_IDX]*(pad_num))))
         return Variable(torch.stack(batch_list, dim=0))
@@ -145,4 +143,4 @@ class Trainer(object):
         s = now - since
         es = s / (percent)
         rs = es - s
-        return '%s (- %s)' % (self._asMinutes(s), self._asMinutes(rs))
+        return '%10s (- %10s)' % (self._asMinutes(s), self._asMinutes(rs))

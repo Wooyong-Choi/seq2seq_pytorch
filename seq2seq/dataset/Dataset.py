@@ -7,6 +7,8 @@ from torch.utils.data import Dataset
 
 from .Vocab import Vocab
 
+
+# TODO: 너무 느림..
 class Dataset(Dataset):
     """
     A dataset basically supports iteration over all the examples it contains.
