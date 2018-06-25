@@ -4,11 +4,6 @@ from __future__ import unicode_literals
 import torch
 import random
 
-import matplotlib
-import matplotlib.pyplot as plt
-import matplotlib.ticker as tk
-import matplotlib.font_manager as fm
-
 from seq2seq.model import Seq2seqModel
 
 class Evaluator(object):
@@ -23,15 +18,20 @@ class Evaluator(object):
         if self.gpu_id != -1:
             self.model.cuda(self.gpu_id)
         
-    def evalModel(self, num, beam_size=-1, showAttn=False):
+    def evalModel(self, num, beam_size=-1, rand=True, showAttn=False):
         pairs = []
+        attn_list = []
         for i in range(num):
-            test_pair = random.choice(self.dataset.test_pairs)
+            if rand:
+                test_pair = random.choice(self.dataset.test_pairs)
+            else:
+                test_pair = self.dataset.test_pairs[i]
             pair, attn_weights = self.generateResponse(test_pair[0], beam_size=beam_size)
             pairs.append(pair)
+            attn_list.append(attn_weights)
             if showAttn == True:
                 self.showAttention(i, pair[0], pair[1], attn_weights)
-        return pairs
+        return pairs, attn_list
     
     def generateResponse(self, input, beam_size=-1):
         """
@@ -56,27 +56,6 @@ class Evaluator(object):
         
         return (input_tokens, gen_sentences), attn_weights
     
-    def showAttention(self, idx, input_sentence, output_words, attentions):
-        path = '/usr/share/fonts/truetype/MS/malgun.ttf'
-        fontprop = fm.FontProperties(fname=path, size='medium')
-        
-        # Set up figure with colorbar
-        fig = plt.figure(figsize=(10, 10))
-        fig.suptitle(''.join(input_sentence)+' -- '+''.join(output_words), fontproperties=fontprop)
-        ax = fig.add_subplot(111)
-        cax = ax.matshow(attentions.numpy(), cmap='bone')
-        fig.colorbar(cax)
-    
-        # Set up axes
-        ax.set_xticklabels([''] + input_sentence + ['<eos>'], rotation=90, fontproperties=fontprop)
-        ax.set_yticklabels([''] + output_words, fontproperties=fontprop)
-    
-        # Show label at every tick
-        ax.xaxis.set_major_locator(tk.MultipleLocator(1))
-        ax.yaxis.set_major_locator(tk.MultipleLocator(1))
-    
-        #plt.show()
-        plt.savefig('{}.png'.format(idx))
     
     # TODO: utils로 빼자
     def loadModel(self, model_state_dict_path):

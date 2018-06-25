@@ -16,13 +16,14 @@ class Dataset(Dataset):
     This class is inheriting Dataset class in torch.utils.data.
     """
 
-    def __init__(self, src_file_path, tgt_file_path, max_length, max_cut=False, src_vocab_size=sys.maxsize, tgt_vocab_size=sys.maxsize):
+    def __init__(self, src_file_path, tgt_file_path, max_src_len, max_tgt_len, max_cut=False, src_vocab_size=sys.maxsize, tgt_vocab_size=sys.maxsize):
         super(Dataset, self).__init__()
         
         self.src_file_path = src_file_path
         self.tgt_file_path = tgt_file_path
         
-        self.max_length = max_length
+        self.max_src_len = max_src_len
+        self.max_tgt_len = max_tgt_len
         self.src_vocab_size = src_vocab_size
         self.tgt_vocab_size = tgt_vocab_size
         
@@ -57,7 +58,7 @@ class Dataset(Dataset):
         self.train_pairs = self.pairs[:int(len(self.pairs)*0.8)]
         self.test_pairs = self.pairs[int(len(self.pairs)*0.8):]
     
-    def _readData(self, reverse=False):
+    def _readData(self):
         print("Reading lines...")
     
         # Read the file and split into lines
@@ -67,20 +68,17 @@ class Dataset(Dataset):
         # Split every line into pairs and normalize
         self.pairs = [[src_lines[i].strip(), tgt_lines[i].strip()] for i in range(len(src_lines))]
     
-        # Reverse pairs
-        if reverse: self.pairs = [list(reversed(p)) for p in pairs]
-    
         print("Success!")
     
     def _filterPairs(self, max_cut):
         self.pairs = [[pair[0].split(' '), pair[1].split(' ')] for pair in self.pairs]
         if max_cut:
-            self.pairs = [[pair[0][:self.max_length], pair[1][:self.max_length]] for pair in self.pairs]
+            self.pairs = [[pair[0][:self.max_src_len], pair[1][:self.max_tgt_len]] for pair in self.pairs]
         else:
             self.pairs = [pair for pair in self.pairs if self._filterPair(pair)]
         
     def _filterPair(self, p):
-        return len(p[0]) <= self.max_length and len(p[1]) <= self.max_length and len(p[0]) > 1 and len(p[1]) > 1
+        return len(p[0]) <= self.max_src_len and len(p[1]) <= self.max_tgt_len and len(p[0]) > 1 and len(p[1]) > 1
     
     def _prepareVocab(self):
         for pair in self.pairs:
@@ -113,5 +111,5 @@ def sorted_collate_fn(batch):
         src_indices.append(item[0])
         tgt_indices.append(item[1])
         src_lengths.append(item[2])
-        tgt_lengths.append(item[3]+1)  # For sos or eos token
+        tgt_lengths.append(item[3])
     return [src_indices, tgt_indices, src_lengths, tgt_lengths]

@@ -36,7 +36,7 @@ class Trainer(object):
         if not os.path.exists(self.expr_path):
             os.makedirs(self.expr_path)
         
-    def train(self, num_epoch, batch_size, optimizer=None, criterion=None):
+    def train(self, num_epoch, batch_size, lr_val=1e-3, optimizer=None, criterion=None):
         start = time.time()
         
         self.data_loader = DataLoader(
@@ -47,33 +47,38 @@ class Trainer(object):
         )
         
         if optimizer == None:
-            optimizer = optim.Adam(self.model.parameters(), lr=1e-3)
+            optimizer = optim.Adam(self.model.parameters(), lr=lr_val)
         if criterion == None:
-            criterion = nn.NLLLoss(size_average=True, ignore_index=0)
+            criterion = nn.NLLLoss(size_average=True, ignore_index=self.data_loader.dataset.src_vocab.pad_idx).cuda(self.gpu_id)
+            #criterion = nn.NLLLoss(size_average=True, ignore_index=self.data_loader.dataset.src_vocab.pad_idx).cuda(self.gpu_id)
         
         plot_losses = []
         print_loss_total = 0  # Reset every print_every
         plot_loss_total = 0  # Reset every plot_every
+        
+        if os.path.exists(self.expr_path+'log.txt'):
+            os.remove(self.expr_path+'log.txt')
     
-        for epoch in range(1, num_epoch + 1):
+        for epoch in range(1, num_epoch+1):
             for src_batch, tgt_batch, src_length, tgt_length in self.data_loader:
                 optimizer.zero_grad()
                 
                 # prepare batch data
-                src_batch = self.prepareBatch(src_batch)
-                tgt_batch = self.prepareBatch(tgt_batch, appendSOSEOS=True)
+                enc_input = self.prepareBatch(src_batch, max(src_length))
+                dec_input = self.prepareBatch(tgt_batch, max(tgt_length), appendSOS=True)
+                dec_target = self.prepareBatch(tgt_batch, max(tgt_length), appendEOS=True)
                 if self.gpu_id != -1:
-                    src_batch = src_batch.cuda(self.gpu_id)
-                    tgt_batch = tgt_batch.cuda(self.gpu_id)
+                    enc_input = enc_input.cuda(self.gpu_id)
+                    dec_input = dec_input.cuda(self.gpu_id)
+                    dec_target = dec_target.cuda(self.gpu_id)
                 
-                # forward model
-                decoder_outputs = self.model(src_batch, tgt_batch[:,:-1], src_length)
+                # forward model`
+                decoder_outputs = self.model(enc_input, dec_input, src_length)
                 
                 start_time = time.time()
             
                 # calculate loss and back-propagate
-                # tgt_batch[:,1:] : remove SOS tokens in all mini-batch
-                loss = criterion(decoder_outputs.view(-1, self.model.output_size), tgt_batch[:,1:].contiguous().view(-1))
+                loss = criterion(decoder_outputs.view(-1, self.model.output_size), dec_target.view(-1))
                 loss.backward()
     
                 optimizer.step()
@@ -83,8 +88,11 @@ class Trainer(object):
     
             if epoch % self.print_interval == 0:
                 print_loss_avg = print_loss_total / self.print_interval
-                print('epoch:%3d (%3d%%) time:%25s loss:%.4f' % (epoch, epoch/num_epoch*100, self._timeSince(start, epoch/num_epoch), print_loss_avg))
+                log_str = 'epoch:%3d (%3d%%) time:%25s loss:%.4f' % (epoch, epoch/num_epoch*100, self._timeSince(start, epoch/num_epoch), print_loss_avg)
+                print(log_str)
                 print_loss_total = 0
+                with open(self.expr_path+'log.txt', 'a') as fp:
+                    fp.write(log_str + '\n')
                 
             if epoch % self.plot_interval == 0:
                 plot_loss_avg = plot_loss_total / self.plot_interval
@@ -103,16 +111,18 @@ class Trainer(object):
         
         
     #TODO: 밑에 애들 utils 로 옮길까
-    def prepareBatch(self, batch, appendSOSEOS=False):
+    def prepareBatch(self, batch, max_len, appendSOS=False, appendEOS=False):
         SOS_IDX = self.data_loader.dataset.src_vocab.sos_idx
         EOS_IDX = self.data_loader.dataset.src_vocab.eos_idx
         PAD_IDX = self.data_loader.dataset.src_vocab.pad_idx
         
         batch_list = []
         for indices in batch:
-            pad_num = self.dataset.max_length - len(indices)
-            if appendSOSEOS:
-                batch_list.append(torch.LongTensor([SOS_IDX]+indices+[EOS_IDX]+([PAD_IDX]*pad_num)))
+            pad_num = max_len - len(indices)
+            if appendSOS:
+                batch_list.append(torch.LongTensor([SOS_IDX]+indices+([PAD_IDX]*pad_num)))
+            elif appendEOS:
+                batch_list.append(torch.LongTensor(indices+[EOS_IDX]+([PAD_IDX]*pad_num)))
             else:
                 batch_list.append(torch.LongTensor(indices+([PAD_IDX]*(pad_num))))
         return Variable(torch.stack(batch_list, dim=0))

@@ -4,15 +4,16 @@ from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 from torch.autograd import Variable
 
 class EncoderRNN(nn.Module):
-    def __init__(self, input_size, hidden_size, n_layers, bidirectional=False):
+    def __init__(self, input_size, emb_size, hidden_size, n_layers, bidirectional=False):
         super(EncoderRNN, self).__init__()
         self.input_size = input_size
+        self.emb_size = emb_size
         self.hidden_size = hidden_size
         self.n_layers = n_layers
         self.bidirectional = bidirectional
 
-        self.embedding = nn.Embedding(input_size, hidden_size, padding_idx=0)
-        self.rnn = nn.GRU(hidden_size, hidden_size, batch_first=True, bidirectional=self.bidirectional)
+        self.embedding = nn.Embedding(input_size, emb_size, padding_idx=0)
+        self.rnn = nn.GRU(emb_size, hidden_size, batch_first=True, bidirectional=self.bidirectional)
 
     def forward(self, input_seqs, input_lens, hidden):
         """

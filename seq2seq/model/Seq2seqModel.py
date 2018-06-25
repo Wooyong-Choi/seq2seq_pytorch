@@ -12,28 +12,30 @@ class Seq2seqModel(nn.Module):
     A seq2seq model has encoder and encoder using RNN.
     """
     
-    def __init__(self, name, input_size, hidden_size, output_size, max_length, bidirectional=False, use_attention=False, gpu_id=-1):
+    def __init__(self, name, input_size, emb_size, hidden_size, output_size, max_src_len, max_tgt_len, bidirectional=False, use_attention=False, gpu_id=-1):
         super(Seq2seqModel, self).__init__()
         self.name = name
         self.input_size = input_size
+        self.emb_size = emb_size
         self.hidden_size = hidden_size
         self.output_size = output_size
         self.n_layers = 1
         self.bidirectional = bidirectional
         self.num_direction = 2 if bidirectional else 1
-        self.max_length = max_length
+        self.max_src_len = max_src_len
+        self.max_tgt_len = max_tgt_len
         self.gpu_id = gpu_id
         
         """
         Encoder uses GRU with embedding layer and packing sequence
         """
-        self.encoder = EncoderRNN(input_size, hidden_size, self.n_layers, self.bidirectional)
+        self.encoder = EncoderRNN(input_size, emb_size, hidden_size, self.n_layers, self.bidirectional)
         
         """
         Decoder uses GRU with embedding layer, fully connected layer and log-softmax
         """
-        self.decoder = DecoderRNN(self.hidden_size*2 if self.bidirectional else self.hidden_size, self.output_size, self.n_layers,
-                                  self.max_length, self.bidirectional, self.gpu_id)
+        self.decoder = DecoderRNN(self.hidden_size*2 if self.bidirectional else self.hidden_size, emb_size, self.output_size,
+                                  self.n_layers, self.max_tgt_len, self.bidirectional, self.gpu_id)
 
         if self.gpu_id != -1:
             self.cuda(self.gpu_id)
@@ -86,17 +88,20 @@ class Seq2seqModel(nn.Module):
         decoder_hidden = encoder_hidden
         decoder_context = encoder_outputs
         
+        decoded = []
+        
+        decoded_words = []
         attn_weights = []
         
         # top 1 decoder
         if beam_size == -1 or beam_size == 1:
             decoded = [tgt_vocab.sos_idx]
-            for i in range(self.max_length+1):
+            for i in range(self.max_tgt_len+1):
                 decoder_input = Variable(torch.LongTensor([decoded[-1]])).unsqueeze(0)
                 decoder_input = decoder_input.cuda(self.gpu_id) if self.gpu_id != -1 else decoder_input
                 
                 decoder_output, decoder_hidden, attn_weight = self.decoder(decoder_input, decoder_hidden, decoder_context)
-                attn_weights.append(attn_weight.squeeze(1).detach().cpu())
+                attn_weights.append(attn_weight.detach().squeeze(1).cpu())
                 decoder_output = decoder_output.view(-1) # 1*1*10000 -> 10000
                 
                 # find candidates of candidates
@@ -105,20 +110,19 @@ class Seq2seqModel(nn.Module):
                 
                 if topIdxs.item() == tgt_vocab.eos_idx:
                     break
+            
+            attn_weights = torch.cat(attn_weights, dim=0)
+            
         # top k decoder with beam search
         else:
             elected_cand = self._decodeWithBeamSearch(decoder_hidden, decoder_context, beam_size, tgt_vocab.sos_idx, tgt_vocab.eos_idx)
             decoded = elected_cand.seq
-        
-        # TODO: beam search시 에도 attn visualization
-        if beam_size == -1 or beam_size == 1:
-            attn_weights = torch.cat(attn_weights, dim=0)
-    
+            attn_weights = elected_cand.attn
+            
         # indices -> word sequence
-        decoded_words = []
-        for idx in decoded:
+        for idx in decoded[1:]:
             decoded_words.append(tgt_vocab.index2word[idx])
-                
+        
         self.train()
         return decoded_words, attn_weights
     
@@ -129,7 +133,7 @@ class Seq2seqModel(nn.Module):
         beam = Beam(beam_size, decoder_hidden, SOS_IDX, EOS_IDX)
 
         # with beam search
-        for i in range(self.max_length+1):
+        for i in range(self.max_tgt_len+1):
             # beam result can be searched beam board or final result of beam search
             self._beamSearchStep(beam, decoder_context)
             # if first ranked sequence is ended with EOS_IDX, return it
@@ -141,7 +145,7 @@ class Seq2seqModel(nn.Module):
     def _beamSearchStep(self, beam, decoder_context):
         pre_candidates = []
         # select each candidate
-        for cur_cand_info in beam.candidates:            
+        for cur_cand_info in beam.candidates:
             # find beams
             decoder_input = Variable(torch.LongTensor([cur_cand_info.getCandidate()])).unsqueeze(0)
             decoder_input = decoder_input.cuda(self.gpu_id) if self.gpu_id != -1 else decoder_input
@@ -151,6 +155,6 @@ class Seq2seqModel(nn.Module):
             
             # find candidates of candidates
             topVecs, topIdxs = decoder_output.sort(descending=True)
-            pre_candidates += beam.electPreCandidates(topVecs, topIdxs, cur_cand_info, decoder_hidden)
+            pre_candidates += beam.electPreCandidates(topVecs, topIdxs, cur_cand_info, decoder_hidden, attn_weight.detach().squeeze(1).cpu())
             
         beam.electCandidates(pre_candidates)

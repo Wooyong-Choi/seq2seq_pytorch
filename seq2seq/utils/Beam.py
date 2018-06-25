@@ -1,3 +1,5 @@
+import torch
+
 class Beam(object):
     """
     For beam search
@@ -9,16 +11,17 @@ class Beam(object):
         self.sos_idx = SOS_IDX
         self.eos_idx = EOS_IDX
         
-        self.candidates = [Candidate([self.sos_idx], 0, init_hidden)]
-        self.eos_best = Candidate(None, float('-inf'), None)
+        self.candidates = [Candidate([self.sos_idx], 0, init_hidden, None)]
+        self.eos_best = Candidate(None, float('-inf'), None, None)
         self.early_end = None
         
-    def electPreCandidates(self, topVecs, topIdxs, cur_cand_info, hidden):
+    def electPreCandidates(self, topVecs, topIdxs, cur_cand_info, hidden, attn):
         pre_candidates = []
             
         for next, next_score in zip(topIdxs, topVecs):
             # Append beams to score board
-            pre_cand = Candidate(cur_cand_info.seq + [next.item()], cur_cand_info.score + next_score.item(), hidden)
+            pre_cand = Candidate(cur_cand_info.seq + [next.item()], cur_cand_info.score + next_score.item(),
+                                 hidden, torch.cat((cur_cand_info.attn, attn), dim=0) if cur_cand_info.attn is not None else attn)
             
             if len(pre_candidates) >= self.beam_size:
                 break
@@ -73,12 +76,12 @@ class Candidate(object):
     """
     A wrapper class for beam searching
     """
-    def __init__(self, seq, score, hidden):
+    def __init__(self, seq, score, hidden, attn):
         super(Candidate, self).__init__()
-        
         self.seq = seq
         self.score = score
         self.hidden = hidden
+        self.attn = attn
     
     def getCandidate(self):
         return self.seq[-1]
