@@ -39,6 +39,8 @@ class Trainer(object):
     def train(self, num_epoch, batch_size, lr_val=1e-3, optimizer=None, criterion=None):
         start = time.time()
         
+        print('Start to train')
+        
         self.data_loader = DataLoader(
             dataset=self.dataset,
             batch_size=batch_size,
@@ -60,7 +62,7 @@ class Trainer(object):
             os.remove(self.expr_path+'log.txt')
     
         for epoch in range(1, num_epoch+1):
-            for src_batch, tgt_batch, src_length, tgt_length in self.data_loader:
+            for src_batch, tgt_batch, src_length, tgt_length, src_layout in self.data_loader:
                 optimizer.zero_grad()
                 
                 # prepare batch data
@@ -72,8 +74,8 @@ class Trainer(object):
                     dec_input = dec_input.cuda(self.gpu_id)
                     dec_target = dec_target.cuda(self.gpu_id)
                 
-                # forward model`
-                decoder_outputs = self.model(enc_input, dec_input, src_length)
+                # forward model
+                decoder_outputs = self.model(enc_input, dec_input, src_length, src_layout)
                 
                 start_time = time.time()
             

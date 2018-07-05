@@ -4,38 +4,57 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 
 class Attn(nn.Module):
-    def __init__(self, dim):
+    def __init__(self, dim, gpu_id):
         super(Attn, self).__init__()
-        self.linear_out = nn.Linear(dim*2, dim)
-        self.mask = None
+        self.gpu_id = gpu_id
+        self.W = nn.Linear(dim*2, dim)
 
-    def set_mask(self, mask):
-        """
-        Sets indices to be masked
-        Args:
-            mask (torch.Tensor): tensor containing indices to be masked
-        """
-        self.mask = mask
-
-    def forward(self, output, context):
+    def forward(self, output, context, layout):
         batch_size = output.size(0)
+        output_size = output.size(1)
         hidden_size = output.size(2)
         input_size = context.size(1)
-        # (batch, out_len, dim) * (batch, in_len, dim) -> (batch, out_len, in_len)
-        attn = torch.bmm(output, context.transpose(1, 2))
-        if self.mask is not None:
-            attn.data.masked_fill_(self.mask, -float('inf'))
-        attn = F.softmax(attn.view(-1, input_size), dim=1).view(batch_size, -1, input_size)
+        
+        # h_t = output
+        # h_s = context
+        # dot score
+        # (batch, out_len, dim) * (batch, dim, in_len) -> (batch, out_len, in_len)
+        score = torch.bmm(output, context.transpose(1, 2))
+        score = self.getAvgedScore(score, layout, input_size, output_size)
+        align = F.softmax(score.view(-1, input_size), dim=1).view(batch_size, -1, input_size)
 
+        # c_t = derived context
         # (batch, out_len, in_len) * (batch, in_len, dim) -> (batch, out_len, dim)
-        mix = torch.bmm(attn, context)
+        aligned_context = torch.bmm(align, context)
 
         # concat -> (batch, out_len, 2*dim)
-        combined = torch.cat((mix, output), dim=2)
+        combined = torch.cat((aligned_context, output), dim=2)
+        
         # output -> (batch, out_len, dim)
-        output = F.tanh(self.linear_out(combined.view(-1, 2 * hidden_size))).view(batch_size, -1, hidden_size)
+        output = F.tanh(self.W(combined.view(-1, 2 * hidden_size))).view(batch_size, -1, hidden_size)
 
-        return output, attn
+        return output, align
+    
+    def getAvgedScore(self, score, layout, input_size, output_size):
+        avged_scores = []
+        for i, l in enumerate(layout):
+            cur_batch_score = []
+            for j in range(len(l)-1):
+                prev = l[j]
+                next = l[j+1]
+                num = next - prev
+                # 띄어쓰기 중첩이 아니면 평균 계산 후 평균으로 매꿈
+                if num != 0:
+                    cur_batch_score.append(torch.stack([score[i, :, prev:next].sum(dim=1) / num] * num, dim=1))
+            avged_score = torch.cat(cur_batch_score, dim=1)
+            padded_size = input_size-avged_score.size()[1]
+            if padded_size != 0:
+                avged_score = torch.cat((avged_score, torch.zeros(output_size, padded_size).cuda(self.gpu_id)), dim=1)
+            
+            avged_scores.append(avged_score)
+        
+        avged_scores = torch.stack(avged_scores, dim=0)
+        return avged_scores
 
 '''
 class Attn(nn.Module):

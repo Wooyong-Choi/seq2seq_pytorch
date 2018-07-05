@@ -12,7 +12,8 @@ class Seq2seqModel(nn.Module):
     A seq2seq model has encoder and encoder using RNN.
     """
     
-    def __init__(self, name, input_size, emb_size, hidden_size, output_size, max_src_len, max_tgt_len, bidirectional=False, use_attention=False, gpu_id=-1):
+    def __init__(self, name, input_size, emb_size, hidden_size, output_size,
+                 max_src_len, max_tgt_len, bidirectional=False, use_attention=False, gpu_id=-1):
         super(Seq2seqModel, self).__init__()
         self.name = name
         self.input_size = input_size
@@ -20,6 +21,7 @@ class Seq2seqModel(nn.Module):
         self.hidden_size = hidden_size
         self.output_size = output_size
         self.n_layers = 1
+        
         self.bidirectional = bidirectional
         self.num_direction = 2 if bidirectional else 1
         self.max_src_len = max_src_len
@@ -40,7 +42,7 @@ class Seq2seqModel(nn.Module):
         if self.gpu_id != -1:
             self.cuda(self.gpu_id)
             
-    def forward(self, src_batch, tgt_batch, src_batch_lengths):
+    def forward(self, src_batch, tgt_batch, src_batch_lengths, src_layout):
         """
         Params:
         -------
@@ -62,7 +64,7 @@ class Seq2seqModel(nn.Module):
         # Decoder : context -> response
         decoder_hidden = encoder_hidden
         decoder_context = encoder_outputs
-        decoder_outputs, decoder_hidden, attn_weights = self.decoder(tgt_batch, decoder_hidden, decoder_context)
+        decoder_outputs, decoder_hidden, attn_weights = self.decoder(tgt_batch, decoder_hidden, decoder_context, src_layout)
         
         return decoder_outputs
     
@@ -79,6 +81,8 @@ class Seq2seqModel(nn.Module):
         encoder_input = Variable(torch.LongTensor(indices)).unsqueeze(0)
         encoder_input = encoder_input.cuda(self.gpu_id) if self.gpu_id != -1 else encoder_input
         encoder_input_length = [encoder_input.size()[1]]
+        
+        blank_indices = self.findBlankIdx(encoder_input)
         
         # Encoder
         encoder_hidden = self.initHidden(1)  # batch_size = 1
@@ -100,7 +104,7 @@ class Seq2seqModel(nn.Module):
                 decoder_input = Variable(torch.LongTensor([decoded[-1]])).unsqueeze(0)
                 decoder_input = decoder_input.cuda(self.gpu_id) if self.gpu_id != -1 else decoder_input
                 
-                decoder_output, decoder_hidden, attn_weight = self.decoder(decoder_input, decoder_hidden, decoder_context)
+                decoder_output, decoder_hidden, attn_weight = self.decoder(decoder_input, decoder_hidden, decoder_context, blank_indices)
                 attn_weights.append(attn_weight.detach().squeeze(1).cpu())
                 decoder_output = decoder_output.view(-1) # 1*1*10000 -> 10000
                 
@@ -115,7 +119,7 @@ class Seq2seqModel(nn.Module):
             
         # top k decoder with beam search
         else:
-            elected_cand = self._decodeWithBeamSearch(decoder_hidden, decoder_context, beam_size, tgt_vocab.sos_idx, tgt_vocab.eos_idx)
+            elected_cand = self._decodeWithBeamSearch(decoder_hidden, decoder_context, beam_size, tgt_vocab.sos_idx, tgt_vocab.eos_idx, blank_indices)
             decoded = elected_cand.seq
             attn_weights = elected_cand.attn
             
@@ -126,7 +130,7 @@ class Seq2seqModel(nn.Module):
         self.train()
         return decoded_words, attn_weights
     
-    def _decodeWithBeamSearch(self, decoder_hidden, decoder_context, beam_size, SOS_IDX, EOS_IDX):
+    def _decodeWithBeamSearch(self, decoder_hidden, decoder_context, beam_size, SOS_IDX, EOS_IDX, blank_indices):
         """
         Find best sequence using beam search
         """
@@ -135,14 +139,14 @@ class Seq2seqModel(nn.Module):
         # with beam search
         for i in range(self.max_tgt_len+1):
             # beam result can be searched beam board or final result of beam search
-            self._beamSearchStep(beam, decoder_context)
+            self._beamSearchStep(beam, decoder_context, blank_indices)
             # if first ranked sequence is ended with EOS_IDX, return it
             if beam.early_end is not None:
                 return beam.early_end
         # no early end
         return beam.getFinalResult()
     
-    def _beamSearchStep(self, beam, decoder_context):
+    def _beamSearchStep(self, beam, decoder_context, blank_indices):
         pre_candidates = []
         # select each candidate
         for cur_cand_info in beam.candidates:
@@ -150,7 +154,7 @@ class Seq2seqModel(nn.Module):
             decoder_input = Variable(torch.LongTensor([cur_cand_info.getCandidate()])).unsqueeze(0)
             decoder_input = decoder_input.cuda(self.gpu_id) if self.gpu_id != -1 else decoder_input
         
-            decoder_output, decoder_hidden, attn_weight = self.decoder(decoder_input, cur_cand_info.hidden, decoder_context)
+            decoder_output, decoder_hidden, attn_weight = self.decoder(decoder_input, cur_cand_info.hidden, decoder_context, blank_indices)
             decoder_output = decoder_output.view(-1) # 1*1*10000 -> 10000
             
             # find candidates of candidates
