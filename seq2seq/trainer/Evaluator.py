@@ -55,7 +55,7 @@ class Evaluator(object):
             input_tokens = self.dataset.vocab.indices_to_sentence(input)
             input_indices = input
             
-        gen_sentences, attn_weights = self.model.sampleResponce(input_indices, input_layout, self.dataset.src_vocab, self.dataset.tgt_vocab, beam_size=beam_size)
+        gen_sentences, attn_weights = self.model.sampleResponce(input_indices, layout, self.dataset.src_vocab, self.dataset.tgt_vocab, beam_size=beam_size)
         
         return (input_tokens, gen_sentences), attn_weights
     
