@@ -75,14 +75,12 @@ class Seq2seqModel(nn.Module):
         else:
             return result
     
-    def sampleResponce(self, indices, src_vocab, tgt_vocab, beam_size=-1):
+    def sampleResponce(self, indices, layout, src_vocab, tgt_vocab, beam_size=-1):
         self.eval()
         
         encoder_input = Variable(torch.LongTensor(indices)).unsqueeze(0)
         encoder_input = encoder_input.cuda(self.gpu_id) if self.gpu_id != -1 else encoder_input
         encoder_input_length = [encoder_input.size()[1]]
-        
-        blank_indices = self.findBlankIdx(encoder_input)
         
         # Encoder
         encoder_hidden = self.initHidden(1)  # batch_size = 1
@@ -104,7 +102,7 @@ class Seq2seqModel(nn.Module):
                 decoder_input = Variable(torch.LongTensor([decoded[-1]])).unsqueeze(0)
                 decoder_input = decoder_input.cuda(self.gpu_id) if self.gpu_id != -1 else decoder_input
                 
-                decoder_output, decoder_hidden, attn_weight = self.decoder(decoder_input, decoder_hidden, decoder_context, blank_indices)
+                decoder_output, decoder_hidden, attn_weight = self.decoder(decoder_input, decoder_hidden, decoder_context, layout)
                 attn_weights.append(attn_weight.detach().squeeze(1).cpu())
                 decoder_output = decoder_output.view(-1) # 1*1*10000 -> 10000
                 
@@ -129,6 +127,19 @@ class Seq2seqModel(nn.Module):
         
         self.train()
         return decoded_words, attn_weights
+    
+    def _filterBlank(self, inputs):
+        blank_idx = [i for i, x in enumerate(inputs) if x == " "]
+        
+        # 띄어쓰기 제거
+        for i in range(len(blank_idx)):
+            blank_idx[i] -= i
+            pair[0].pop(blank_idx[i])
+            
+        blank_idx.insert(0, 0)
+        blank_idx.append(len(pair[0]))
+                         
+        return blank_idx
     
     def _decodeWithBeamSearch(self, decoder_hidden, decoder_context, beam_size, SOS_IDX, EOS_IDX, blank_indices):
         """

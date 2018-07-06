@@ -108,19 +108,6 @@ class Dataset(Dataset):
     def _filterPair(self, p):
         return len(p[0]) <= self.max_src_len and len(p[1]) <= self.max_tgt_len and len(p[0]) > 1 and len(p[1]) > 1
     
-    def _filterBlank(self, pair):
-        blank_idx = [i for i, x in enumerate(pair[0]) if x == "^"]
-        
-        # 띄어쓰기 제거
-        for i in range(len(blank_idx)):
-            blank_idx[i] -= i
-            pair[0].pop(blank_idx[i])
-            
-        blank_idx.insert(0, 0)
-        blank_idx.append(len(pair[0]))
-                         
-        return blank_idx
-    
     def _prepareVocab(self, pairs):
         for pair in pairs:
             self.src_vocab.addSentence(pair[0])
