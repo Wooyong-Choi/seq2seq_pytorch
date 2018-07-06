@@ -27,7 +27,7 @@ class Evaluator(object):
             else:
                 test_idx = i
             test_pair = self.dataset.test_pairs[test_idx]
-            test_layout = self.dataset.test_layout[test_idx]
+            test_layout = [self.dataset.test_layout[test_idx]]
             
             pair, attn_weights = self.generateResponse(test_pair[0], test_layout, beam_size=beam_size)
             pairs.append(pair)
@@ -36,7 +36,7 @@ class Evaluator(object):
                 self.showAttention(i, pair[0], pair[1], attn_weights)
         return pairs, attn_list
     
-    def generateResponse(self, input, layout, beam_size=-1):
+    def generateResponse(self, input, input_layout, beam_size=-1):
         """
         Params:
         -------
@@ -55,7 +55,11 @@ class Evaluator(object):
             input_tokens = self.dataset.vocab.indices_to_sentence(input)
             input_indices = input
             
-        gen_sentences, attn_weights = self.model.sampleResponce(input_indices, layout, self.dataset.src_vocab, self.dataset.tgt_vocab, beam_size=beam_size)
+        gen_sentences, attn_weights = self.model.sampleResponce(
+            input_indices, input_layout,
+            self.dataset.src_vocab, self.dataset.tgt_vocab,
+            beam_size=beam_size
+        )
         
         return (input_tokens, gen_sentences), attn_weights
     

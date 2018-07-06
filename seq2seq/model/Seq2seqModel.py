@@ -13,7 +13,8 @@ class Seq2seqModel(nn.Module):
     """
     
     def __init__(self, name, input_size, emb_size, hidden_size, output_size,
-                 max_src_len, max_tgt_len, bidirectional=False, use_attention=False, gpu_id=-1):
+                 max_src_len, max_tgt_len,
+                 dropout_p=0.1, bidirectional=False, use_attention=False, gpu_id=-1):
         super(Seq2seqModel, self).__init__()
         self.name = name
         self.input_size = input_size
@@ -22,6 +23,7 @@ class Seq2seqModel(nn.Module):
         self.output_size = output_size
         self.n_layers = 1
         
+        self.dropout_p = dropout_p
         self.bidirectional = bidirectional
         self.num_direction = 2 if bidirectional else 1
         self.max_src_len = max_src_len
@@ -37,7 +39,7 @@ class Seq2seqModel(nn.Module):
         Decoder uses GRU with embedding layer, fully connected layer and log-softmax
         """
         self.decoder = DecoderRNN(self.hidden_size*2 if self.bidirectional else self.hidden_size, emb_size, self.output_size,
-                                  self.n_layers, self.max_tgt_len, self.bidirectional, self.gpu_id)
+                                  self.n_layers, self.dropout_p, self.max_tgt_len, self.bidirectional, self.gpu_id)
 
         if self.gpu_id != -1:
             self.cuda(self.gpu_id)
@@ -117,7 +119,7 @@ class Seq2seqModel(nn.Module):
             
         # top k decoder with beam search
         else:
-            elected_cand = self._decodeWithBeamSearch(decoder_hidden, decoder_context, beam_size, tgt_vocab.sos_idx, tgt_vocab.eos_idx, blank_indices)
+            elected_cand = self._decodeWithBeamSearch(decoder_hidden, decoder_context, beam_size, tgt_vocab.sos_idx, tgt_vocab.eos_idx, layout)
             decoded = elected_cand.seq
             attn_weights = elected_cand.attn
             
@@ -128,20 +130,7 @@ class Seq2seqModel(nn.Module):
         self.train()
         return decoded_words, attn_weights
     
-    def _filterBlank(self, inputs):
-        blank_idx = [i for i, x in enumerate(inputs) if x == " "]
-        
-        # 띄어쓰기 제거
-        for i in range(len(blank_idx)):
-            blank_idx[i] -= i
-            pair[0].pop(blank_idx[i])
-            
-        blank_idx.insert(0, 0)
-        blank_idx.append(len(pair[0]))
-                         
-        return blank_idx
-    
-    def _decodeWithBeamSearch(self, decoder_hidden, decoder_context, beam_size, SOS_IDX, EOS_IDX, blank_indices):
+    def _decodeWithBeamSearch(self, decoder_hidden, decoder_context, beam_size, SOS_IDX, EOS_IDX, layout):
         """
         Find best sequence using beam search
         """
@@ -150,14 +139,14 @@ class Seq2seqModel(nn.Module):
         # with beam search
         for i in range(self.max_tgt_len+1):
             # beam result can be searched beam board or final result of beam search
-            self._beamSearchStep(beam, decoder_context, blank_indices)
+            self._beamSearchStep(beam, decoder_context, layout)
             # if first ranked sequence is ended with EOS_IDX, return it
             if beam.early_end is not None:
                 return beam.early_end
         # no early end
         return beam.getFinalResult()
     
-    def _beamSearchStep(self, beam, decoder_context, blank_indices):
+    def _beamSearchStep(self, beam, decoder_context, layout):
         pre_candidates = []
         # select each candidate
         for cur_cand_info in beam.candidates:
@@ -165,7 +154,7 @@ class Seq2seqModel(nn.Module):
             decoder_input = Variable(torch.LongTensor([cur_cand_info.getCandidate()])).unsqueeze(0)
             decoder_input = decoder_input.cuda(self.gpu_id) if self.gpu_id != -1 else decoder_input
         
-            decoder_output, decoder_hidden, attn_weight = self.decoder(decoder_input, cur_cand_info.hidden, decoder_context, blank_indices)
+            decoder_output, decoder_hidden, attn_weight = self.decoder(decoder_input, cur_cand_info.hidden, decoder_context, layout)
             decoder_output = decoder_output.view(-1) # 1*1*10000 -> 10000
             
             # find candidates of candidates
