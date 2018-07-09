@@ -55,6 +55,27 @@ class Attn(nn.Module):
         
         avged_scores = torch.stack(avged_scores, dim=0)
         return avged_scores
+    
+    def getMaxedScore(score, layout, input_size, output_size):
+        maxed_scores = []
+        for i, l in enumerate(layout):
+            cur_batch_score = []
+            for j in range(len(l)-1):
+                prev = l[j]
+                next = l[j+1]
+                num = next - prev
+                # 띄어쓰기 중첩이 아니면 평균 계산 후 평균으로 매꿈
+                if num != 0:
+                    cur_batch_score.append(torch.stack([score[i, :, prev:next].max(dim=1)[0]] * num, dim=1))
+            maxed_score = torch.cat(cur_batch_score, dim=1)
+            padded_size = input_size-maxed_score.size()[1]
+            if padded_size != 0:
+                maxed_score = torch.cat((maxed_score, torch.zeros(output_size, padded_size).cuda()), dim=1)
+            
+            maxed_scores.append(maxed_score)
+        
+        maxed_scores = torch.stack(maxed_scores, dim=0)
+        return maxed_scores
 
 '''
 class Attn(nn.Module):

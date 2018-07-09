@@ -89,8 +89,8 @@ class Dataset(Dataset):
         new_pairs = []
         layout = []
         for pair in pairs:
-            pair = [[c for c in re.sub('[\s+]', '^', pair[0])],
-                    [c for c in re.sub('[\s+]', '^', pair[1])]]
+            pair = [[c.lower() for c in re.sub('[\s+]', '^', pair[0])],
+                    [c.lower() for c in re.sub('[\s+]', '^', pair[1])]]
             
             if max_cut:
                 pair = [pair[0][:self.max_src_len], pair[1][:self.max_tgt_len]]

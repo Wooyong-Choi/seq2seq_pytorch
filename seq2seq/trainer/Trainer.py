@@ -36,7 +36,7 @@ class Trainer(object):
         if not os.path.exists(self.expr_path):
             os.makedirs(self.expr_path)
         
-    def train(self, num_epoch, batch_size, lr_val=1e-3, optimizer=None, criterion=None):
+    def train(self, num_epoch, batch_size, lr_val=1e-3, start_decay=0, lr_decay=1, optimizer=None, criterion=None):
         start = time.time()
         
         print('Start to train')
@@ -88,8 +88,13 @@ class Trainer(object):
                 print_loss_total += loss.item()
                 plot_loss_total += loss.item()
     
+            
+            # decay learning rate
+            if start_decay != 0:
+                self._lr_scheduler(optimizer, lr_val, epoch, start_decay=start_decay, decay_factor=lr_decay)
+            
             if epoch % self.print_interval == 0:
-                print_loss_avg = print_loss_total / self.print_interval
+                print_loss_avg = (print_loss_total/len(self.dataset)) / self.print_interval
                 log_str = 'epoch:%3d (%3d%%) time:%25s loss:%.4f' % (epoch, epoch/num_epoch*100, self._timeSince(start, epoch/num_epoch), print_loss_avg)
                 print(log_str)
                 print_loss_total = 0
@@ -97,12 +102,12 @@ class Trainer(object):
                     fp.write(log_str + '\n')
                 
             if epoch % self.plot_interval == 0:
-                plot_loss_avg = plot_loss_total / self.plot_interval
+                plot_loss_avg = (plot_loss_total/len(self.dataset)*batch_size)  / self.plot_interval
                 plot_losses.append(plot_loss_avg)
                 plot_loss_total = 0
                 
             if epoch % self.checkpoint_interval == 0:
-                self._save_checkpoint(epoch)
+                self._save_checkpoint(epoch)                
                 
             # TODO:
             #if epoch % self.eval_interval == 0:
@@ -131,7 +136,19 @@ class Trainer(object):
     
     # TODO:
     #def _get_eval_loss(self):
-        
+    
+    def _lr_scheduler(self, optimizer, init_lr, iter, start_decay, decay_factor=0.9):
+        """Decay of learning rate
+            :param init_lr is base learning rate
+            :param iter is a current iteration
+            :param start_decay how frequently decay occurs, default is 1
+            :param decay_factor is a decay factor
+        """
+        lr = init_lr*decay_factor**(iter-start_decay+1 if iter-start_decay >= -1 else 0)
+        for param_group in optimizer.param_groups:
+            param_group['lr'] = lr
+    
+        return lr
     
     def _save_checkpoint(self, epoch):
         checkpoint_path = self.expr_path+self.model.name+str(epoch)+'.model'
