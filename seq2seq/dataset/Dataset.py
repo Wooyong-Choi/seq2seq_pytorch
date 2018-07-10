@@ -106,7 +106,7 @@ class Dataset(Dataset):
         return new_pairs, layout
 
     def _filterPair(self, p):
-        return len(p[0]) <= self.max_src_len and len(p[1]) <= self.max_tgt_len and len(p[0]) > 1 and len(p[1]) > 1
+        return len(p[0]) <= self.max_src_len and len(p[1]) <= self.max_tgt_len and len(p[0]) > 0 and len(p[1]) > 0
     
     def _filterBlank(self, pair):
         blank_idx = [i for i, x in enumerate(pair[0]) if x == "^"]
