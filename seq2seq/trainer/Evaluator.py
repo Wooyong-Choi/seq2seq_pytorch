@@ -27,7 +27,10 @@ class Evaluator(object):
             else:
                 test_idx = i
             test_pair = self.dataset.test_pairs[test_idx]
-            test_layout = [self.dataset.test_layout[test_idx]]
+            if self.dataset.charModel:
+                test_layout = [self.dataset.test_layout[test_idx]]
+            else:
+                test_layout = None
             
             pair, attn_weights = self.generateResponse(test_pair[0], test_layout, beam_size=beam_size)
             pairs.append(pair)

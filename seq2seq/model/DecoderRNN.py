@@ -6,7 +6,7 @@ from torch.autograd import Variable
 from .Attn import Attn
 
 class DecoderRNN(nn.Module):
-    def __init__(self, hidden_size, emb_size, output_size, n_layers, dropout_p, max_length, bidirection, gpu_id=-1):
+    def __init__(self, hidden_size, emb_size, output_size, attn_mode, n_layers, dropout_p, max_length, bidirection, gpu_id=-1):
         super(DecoderRNN, self).__init__()
         self.hidden_size = hidden_size
         self.emb_size = emb_size
@@ -20,7 +20,7 @@ class DecoderRNN(nn.Module):
         self.embedding = nn.Embedding(output_size, emb_size, padding_idx=0)
         self.dropout = nn.Dropout(self.dropout_p)
         self.rnn = nn.GRU(emb_size, hidden_size, batch_first=True)
-        self.attn = Attn(hidden_size, gpu_id)
+        self.attn = Attn(hidden_size, attn_mode, gpu_id)
         self.out = nn.Linear(hidden_size, output_size)
         self.softmax = nn.LogSoftmax(dim=1)
         

@@ -14,7 +14,7 @@ class Seq2seqModel(nn.Module):
     
     def __init__(self, name, input_size, emb_size, hidden_size, output_size,
                  max_src_len, max_tgt_len,
-                 dropout_p=0.1, bidirectional=False, use_attention=False, gpu_id=-1):
+                 attn_mode='max', dropout_p=0.1, bidirectional=False, use_attention=False, gpu_id=-1):
         super(Seq2seqModel, self).__init__()
         self.name = name
         self.input_size = input_size
@@ -23,6 +23,7 @@ class Seq2seqModel(nn.Module):
         self.output_size = output_size
         self.n_layers = 1
         
+        self.attn_mode = attn_mode
         self.dropout_p = dropout_p
         self.bidirectional = bidirectional
         self.num_direction = 2 if bidirectional else 1
@@ -39,7 +40,7 @@ class Seq2seqModel(nn.Module):
         Decoder uses GRU with embedding layer, fully connected layer and log-softmax
         """
         self.decoder = DecoderRNN(self.hidden_size*2 if self.bidirectional else self.hidden_size, emb_size, self.output_size,
-                                  self.n_layers, self.dropout_p, self.max_tgt_len, self.bidirectional, self.gpu_id)
+                                  self.attn_mode, self.n_layers, self.dropout_p, self.max_tgt_len, self.bidirectional, self.gpu_id)
 
         if self.gpu_id != -1:
             self.cuda(self.gpu_id)
