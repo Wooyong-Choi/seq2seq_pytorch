@@ -8,7 +8,6 @@ from torch.utils.data import Dataset
 from .Vocab import Vocab
 
 
-# TODO: 너무 느림..
 class Dataset(Dataset):
     """
     A dataset basically supports iteration over all the examples it contains.
@@ -16,17 +15,19 @@ class Dataset(Dataset):
     This class is inheriting Dataset class in torch.utils.data.
     """
 
-    def __init__(self, src_file_path, tgt_file_path, max_src_len, max_tgt_len, max_cut=False, src_vocab_size=sys.maxsize, tgt_vocab_size=sys.maxsize):
+    def __init__(self, src_file_path, tgt_file_path, max_src_len, max_tgt_len,
+                 max_cut=False, charModel=False, src_vocab_size=sys.maxsize, tgt_vocab_size=sys.maxsize):
         super(Dataset, self).__init__()
         
         self.src_file_path = src_file_path
         self.tgt_file_path = tgt_file_path
-        
         self.max_src_len = max_src_len
         self.max_tgt_len = max_tgt_len
-        
         self.src_vocab_size = src_vocab_size
         self.tgt_vocab_size = tgt_vocab_size
+        
+        self.max_cut = max_cut
+        self.charModel = charModel
         
         self.train_pairs = None
         self.test_pairs = None
@@ -37,35 +38,38 @@ class Dataset(Dataset):
         self.src_vocab = Vocab()
         self.tgt_vocab = Vocab()
         
-        self._prepareData(max_cut=max_cut)
+        self._prepareData()
         
     def __getitem__(self, index):
         src_indices = self.src_vocab.sentence_to_indices(self.train_pairs[index][0])
         tgt_indices = self.tgt_vocab.sentence_to_indices(self.train_pairs[index][1])
         src_lengths = len(self.train_pairs[index][0])
         tgt_lengths = len(self.train_pairs[index][1])
-        src_layout = self.train_layout[index]
+        if self.charModel:
+            src_layout = self.train_layout[index]
+        else:
+            src_layout = None
         return (src_indices, tgt_indices, src_lengths, tgt_lengths, src_layout)
                 
     def __len__(self):
         return len(self.train_pairs)
     
-    def _prepareData(self, max_cut):
+    def _prepareData(self):
         pairs = self._readData()
         print("Read %s sentence pairs" % len(pairs))
         print()
         
-        pairs, layout = self._filterPairs(pairs, max_cut)
+        pairs, layout = self._filterPairs(pairs)
         print("Trim data to %s sentence pairs" % len(pairs))
         print()
         
         self._prepareVocab(pairs)
         print()
         
-        self.train_pairs = pairs[:int(len(pairs)*0.8)]
-        self.test_pairs = pairs[int(len(pairs)*0.8):]
-        self.train_layout = layout[:int(len(pairs)*0.8)]
-        self.test_layout = layout[int(len(pairs)*0.8):]
+        self.train_pairs = pairs[:int(len(pairs)*0.9)]
+        self.test_pairs = pairs[int(len(pairs)*0.9):]
+        self.train_layout = layout[:int(len(pairs)*0.9)]
+        self.test_layout = layout[int(len(pairs)*0.9):]
         
         print("Success to preprocess data!")
         print()
@@ -85,23 +89,30 @@ class Dataset(Dataset):
         
         return pairs
     
-    def _filterPairs(self, pairs, max_cut):
+    def _filterPairs(self, pairs):
         new_pairs = []
         layout = []
-        for pair in pairs:
-            pair = [[c.lower() for c in re.sub('[\s+]', '^', pair[0])],
-                    [c.lower() for c in re.sub('[\s+]', '^', pair[1])]]
-            
-            if max_cut:
-                pair = [pair[0][:self.max_src_len], pair[1][:self.max_tgt_len]]
-
-            elif self._filterPair(pair) is False:
-                continue
-
-            blank_idx = self._filterBlank(pair)
-
-            new_pairs.append(pair)
-            layout.append(blank_idx)
+        if self.charModel:
+            for pair in pairs:
+                pair = [[c.lower() for c in re.sub('[\s+]', '^', pair[0])],
+                        [c.lower() for c in re.sub('[\s+]', '^', pair[1])]]
+                
+                if self.max_cut:
+                    pair = [pair[0][:self.max_src_len], pair[1][:self.max_tgt_len]]
+    
+                elif self._filterPair(pair) is False:
+                    continue
+    
+                blank_idx = self._filterBlank(pair)
+    
+                new_pairs.append(pair)
+                layout.append(blank_idx)
+        else:
+            if self.max_cut:
+                new_pairs = [[pair[0].lower().split(' ')[:self.max_src_len], pair[1].lower().split(' ')[:self.max_tgt_len]] for pair in pairs]
+            else:
+                new_pairs = [[pair[0].lower().split(' '), pair[1].lower().split(' ')] for pair in pairs]
+                new_pairs = [pair for pair in new_pairs if self._filterPair(pair)]
             
         return new_pairs, layout
 

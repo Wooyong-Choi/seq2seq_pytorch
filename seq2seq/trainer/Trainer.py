@@ -19,11 +19,12 @@ class Trainer(object):
     A trainer class supports our seq2seq model to train it easily
     """
     
-    def __init__(self, model, dataset, gpu_id=-1, print_interval=1, plot_interval=1, checkpoint_interval=10, eval_interval=10, expr_path='experiment/'):
+    def __init__(self, model, dataset, gpu_id=-1, print_interval=1, plot_interval=-1, checkpoint_interval=10, eval_interval=10, expr_path='experiment/'):
         super(Trainer, self).__init__()
         self.model = model
         self.dataset = dataset
         self.data_loader = None
+        self.eval_data = None
         
         self.gpu_id = gpu_id
         
@@ -94,7 +95,7 @@ class Trainer(object):
                 self._lr_scheduler(optimizer, lr_val, epoch, start_decay=start_decay, decay_factor=lr_decay)
             
             if epoch % self.print_interval == 0:
-                print_loss_avg = (print_loss_total/len(self.dataset)) / self.print_interval
+                print_loss_avg = print_loss_total / self.print_interval
                 log_str = 'epoch:%3d (%3d%%) time:%25s loss:%.4f' % (epoch, epoch/num_epoch*100, self._timeSince(start, epoch/num_epoch), print_loss_avg)
                 print(log_str)
                 print_loss_total = 0
@@ -102,7 +103,7 @@ class Trainer(object):
                     fp.write(log_str + '\n')
                 
             if epoch % self.plot_interval == 0:
-                plot_loss_avg = (plot_loss_total/len(self.dataset)*batch_size)  / self.plot_interval
+                plot_loss_avg = plot_loss_total / self.plot_interval
                 plot_losses.append(plot_loss_avg)
                 plot_loss_total = 0
                 
@@ -134,8 +135,35 @@ class Trainer(object):
                 batch_list.append(torch.LongTensor(indices+([PAD_IDX]*(pad_num))))
         return Variable(torch.stack(batch_list, dim=0))
     
+    def _prepare_eval_data(self):
+        test_batch = [
+            [
+                self.dataset.src_vocab.sentence_to_indices(self.dataset.test_pairs[index][0]),
+                self.dataset.tgt_vocab.sentence_to_indices(self.dataset.test_pairs[index][1]),
+                len(self.dataset.test_pairs[index][0]),
+                len(self.dataset.test_pairs[index][1]),
+                self.dataset.test_layout[index]
+            ]
+            for index in range(len(dataset.test_pairs))
+        ]
+        
+        batch = sorted(test_batch, key=lambda x: len(x[0]), reverse=True)
+        src_indices = []
+        tgt_indices = []
+        src_lengths = []
+        tgt_lengths = []
+        src_layouts = []
+        for item in batch:
+            src_indices.append(item[0])
+            tgt_indices.append(item[1])
+            src_lengths.append(item[2])
+            tgt_lengths.append(item[3])
+            src_layouts.append(item[4])
+    
+    
     # TODO:
-    #def _get_eval_loss(self):
+    def _get_eval_loss(self):
+        a = 2
     
     def _lr_scheduler(self, optimizer, init_lr, iter, start_decay, decay_factor=0.9):
         """Decay of learning rate

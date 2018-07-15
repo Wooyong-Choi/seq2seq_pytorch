@@ -4,8 +4,9 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 
 class Attn(nn.Module):
-    def __init__(self, dim, gpu_id):
+    def __init__(self, dim, attn_mode, gpu_id):
         super(Attn, self).__init__()
+        self.attn_mode = attn_mode
         self.gpu_id = gpu_id
         self.W = nn.Linear(dim*2, dim)
 
@@ -20,7 +21,14 @@ class Attn(nn.Module):
         # dot score
         # (batch, out_len, dim) * (batch, dim, in_len) -> (batch, out_len, in_len)
         score = torch.bmm(output, context.transpose(1, 2))
+<<<<<<< HEAD
         score = self.getMaxedScore(score, layout, input_size, output_size)
+=======
+        if self.attn_mode == 'max':
+            score = self.getMaxedScore(score, layout, input_size, output_size)
+        elif self.attn_mode == 'avg':
+            score = self.getAvgedScore(score, layout, input_size, output_size)
+>>>>>>> 87a33ec33fd37829b352bd338e591abbaad21443
         align = F.softmax(score.view(-1, input_size), dim=1).view(batch_size, -1, input_size)
 
         # c_t = derived context
@@ -56,7 +64,7 @@ class Attn(nn.Module):
         avged_scores = torch.stack(avged_scores, dim=0)
         return avged_scores
     
-    def getMaxedScore(score, layout, input_size, output_size):
+    def getMaxedScore(self, score, layout, input_size, output_size):
         maxed_scores = []
         for i, l in enumerate(layout):
             cur_batch_score = []
