@@ -20,7 +20,7 @@ class Attn(nn.Module):
         # dot score
         # (batch, out_len, dim) * (batch, dim, in_len) -> (batch, out_len, in_len)
         score = torch.bmm(output, context.transpose(1, 2))
-        score = self.getAvgedScore(score, layout, input_size, output_size)
+        score = self.getMaxedScore(score, layout, input_size, output_size)
         align = F.softmax(score.view(-1, input_size), dim=1).view(batch_size, -1, input_size)
 
         # c_t = derived context
