@@ -20,9 +20,6 @@ class Attn(nn.Module):
         # h_s = context
         # dot score
         # (batch, out_len, dim) * (batch, dim, in_len) -> (batch, out_len, in_len)
-        if self.attn_mode == 'max_context':
-            context = self.getMaxedContext(context, layout, input_size, hidden_size)
-            input_size = context.size(1)
         score = torch.bmm(output, context.transpose(1, 2))
         if self.attn_mode == 'max':
             score = self.getMaxedScore(score, layout, input_size, output_size)
@@ -83,28 +80,6 @@ class Attn(nn.Module):
         
         maxed_scores = torch.stack(maxed_scores, dim=0)
         return maxed_scores
-    
-    def getMaxedContext(self, context, layout, input_size, hidden_size):
-        max_word_lens = max([len(l)-1 for l in layout])
-
-        maxed_contexts = []
-        for i, l in enumerate(layout):
-            cur_batch_context = []
-            for j in range(len(l)-1):
-                prev = l[j]
-                next = l[j+1]
-                num = next - prev
-                if num != 0:
-                    cur_batch_context.append(torch.cat([context[i, prev:next].max(dim=0)[0]], dim=0))
-            maxed_context = torch.stack(cur_batch_context, dim=0)
-            padding_size = max_word_lens - len(cur_batch_context)
-            if padding_size != 0:
-                padding_vec = torch.zeros((padding_size, hidden_size)).cuda(self.gpu_id)
-                maxed_context = torch.cat((maxed_context, padding_vec), dim=0)
-            maxed_contexts.append(maxed_context)
-
-        maxed_contexts = torch.stack(maxed_contexts, dim=0)
-        return maxed_contexts
 
 '''
 class Attn(nn.Module):

@@ -14,7 +14,8 @@ class Seq2seqModel(nn.Module):
     
     def __init__(self, name, input_size, emb_size, hidden_size, output_size,
                  max_src_len, max_tgt_len,
-                 attn_mode='max', dropout_p=0.1, bidirectional=False, use_attention=False, gpu_id=-1):
+                 encode_mode='nml', attn_mode='nml',
+                 dropout_p=0.2, bidirectional=False, use_attention=False, gpu_id=-1):
         super(Seq2seqModel, self).__init__()
         self.name = name
         self.input_size = input_size
@@ -23,7 +24,9 @@ class Seq2seqModel(nn.Module):
         self.output_size = output_size
         self.n_layers = 1
         
+        self.encoder_mode = encoder_mode
         self.attn_mode = attn_mode
+        
         self.dropout_p = dropout_p
         self.bidirectional = bidirectional
         self.num_direction = 2 if bidirectional else 1
@@ -34,7 +37,7 @@ class Seq2seqModel(nn.Module):
         """
         Encoder uses GRU with embedding layer and packing sequence
         """
-        self.encoder = EncoderRNN(input_size, emb_size, hidden_size, self.n_layers, self.bidirectional)
+        self.encoder = EncoderRNN(input_size, emb_size, hidden_size, self.n_layers, self.bidirectional, self.encode_mode)
         
         """
         Decoder uses GRU with embedding layer, fully connected layer and log-softmax
@@ -62,7 +65,7 @@ class Seq2seqModel(nn.Module):
         
         # Encoder : sentence -> context
         encoder_hidden = self.initHidden(cur_batch_size)
-        encoder_outputs, encoder_hidden = self.encoder(src_batch, src_batch_lengths, encoder_hidden)
+        encoder_outputs, encoder_hidden = self.encoder(src_batch, src_batch_lengths, encoder_hidden, src_layout)
         
         # Decoder : context -> response
         decoder_hidden = encoder_hidden
