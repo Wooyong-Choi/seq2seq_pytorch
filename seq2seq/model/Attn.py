@@ -103,7 +103,6 @@ class Attn(nn.Module):
                 maxed_context = torch.cat((maxed_context, padding_vec), dim=0)
             maxed_contexts.append(maxed_context)
 
-        print(maxed_contexts)
         maxed_contexts = torch.stack(maxed_contexts, dim=0)
         return maxed_contexts
 
