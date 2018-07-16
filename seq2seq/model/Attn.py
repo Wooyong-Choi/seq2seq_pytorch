@@ -15,20 +15,16 @@ class Attn(nn.Module):
         output_size = output.size(1)
         hidden_size = output.size(2)
         input_size = context.size(1)
-        
+
         # h_t = output
         # h_s = context
         # dot score
         # (batch, out_len, dim) * (batch, dim, in_len) -> (batch, out_len, in_len)
         score = torch.bmm(output, context.transpose(1, 2))
-<<<<<<< HEAD
-        score = self.getMaxedScore(score, layout, input_size, output_size)
-=======
         if self.attn_mode == 'max':
             score = self.getMaxedScore(score, layout, input_size, output_size)
         elif self.attn_mode == 'avg':
             score = self.getAvgedScore(score, layout, input_size, output_size)
->>>>>>> 87a33ec33fd37829b352bd338e591abbaad21443
         align = F.softmax(score.view(-1, input_size), dim=1).view(batch_size, -1, input_size)
 
         # c_t = derived context
@@ -78,7 +74,7 @@ class Attn(nn.Module):
             maxed_score = torch.cat(cur_batch_score, dim=1)
             padded_size = input_size-maxed_score.size()[1]
             if padded_size != 0:
-                maxed_score = torch.cat((maxed_score, torch.zeros(output_size, padded_size).cuda()), dim=1)
+                maxed_score = torch.cat((maxed_score, torch.zeros(output_size, padded_size).cuda(self.gpu_id)), dim=1)
             
             maxed_scores.append(maxed_score)
         
