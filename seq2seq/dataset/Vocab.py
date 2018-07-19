@@ -29,7 +29,7 @@ class Vocab:
         else:
             self.word2count[word] += 1            
         
-    def makeVocabDict(self, vocab_size):
+    def makeVocabDict(self, vocab_size, min_freq):
         """
         Make index2word and word2index with added sentences and words before.
         The indices of word is decided by its frequency.
@@ -39,6 +39,9 @@ class Vocab:
         
         # sort vocab dictionary using frequency
         sorted_vocab = sorted(self.word2count.items(), key=operator.itemgetter(1), reverse=True)[:vocab_size]
+        if min_freq > 1:
+            sorted_vocab = [(word, cnt) for word, cnt in sorted_vocab if cnt >= min_freq]
+            vocab_size = len(sorted_vocab)
         
         # update index2word dictionary
         sorted_i2w = {i+self.num_symbol:sorted_vocab[i][0] for i in range(vocab_size-self.num_symbol)}

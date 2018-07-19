@@ -32,31 +32,31 @@ class Evaluator(object):
             else:
                 test_layout = None
             
-            pair, attn_weights = self.generateResponse(test_pair[0], test_layout, beam_size=beam_size)
+            pair, attn_weights = self.generateResponse(test_pair, test_layout, beam_size=beam_size)
             pairs.append(pair)
             attn_list.append(attn_weights)
             if showAttn == True:
                 self.showAttention(i, pair[0], pair[1], attn_weights)
         return pairs, attn_list
     
-    def generateResponse(self, input, input_layout, beam_size=-1):
+    def generateResponse(self, inputs, input_layout, beam_size=-1):
         """
         Params:
         -------
         inputs: string of sentence
         beam_size: beam size for beam search
         """
-        if (isinstance(input, str)):
-            input_tokens = self.dataset._normalizeString(input)
+        if (isinstance(inputs[0], str)):
+            input_tokens = self.dataset._normalizeString(inputs[0])
             input_indices = self.dataset.src_vocab.sentence_to_indices(input_tokens)
             
-        elif (isinstance(input, list) and isinstance(input[0], str)):
-            input_tokens = input
-            input_indices = self.dataset.src_vocab.sentence_to_indices(input)
+        elif (isinstance(inputs[0], list) and isinstance(inputs[0][0], str)):
+            input_tokens = inputs[0]
+            input_indices = self.dataset.src_vocab.sentence_to_indices(inputs[0])
             
-        elif (isinstance(input, list) and isinstance(input[0], int)):
-            input_tokens = self.dataset.vocab.indices_to_sentence(input)
-            input_indices = input
+        elif (isinstance(inputs[0], list) and isinstance(inputs[0][0], int)):
+            input_tokens = self.dataset.vocab.indices_to_sentence(inputs[0])
+            input_indices = inputs[0]
             
         gen_sentences, attn_weights = self.model.sampleResponce(
             input_indices, input_layout,
@@ -64,7 +64,7 @@ class Evaluator(object):
             beam_size=beam_size
         )
         
-        return (input_tokens, gen_sentences), attn_weights
+        return (inputs[0], inputs[1], gen_sentences), attn_weights
     
     
     # TODO: utils로 빼자

@@ -16,13 +16,15 @@ class Dataset(Dataset):
     """
 
     def __init__(self, src_file_path, tgt_file_path, max_src_len, max_tgt_len,
-                 max_cut=False, charModel=False, src_vocab_size=sys.maxsize, tgt_vocab_size=sys.maxsize):
+                 max_cut=False, charModel=False,
+                 min_frequency=1, src_vocab_size=sys.maxsize, tgt_vocab_size=sys.maxsize):
         super(Dataset, self).__init__()
         
         self.src_file_path = src_file_path
         self.tgt_file_path = tgt_file_path
         self.max_src_len = max_src_len
         self.max_tgt_len = max_tgt_len
+        self.min_frequency = min_frequency
         self.src_vocab_size = src_vocab_size
         self.tgt_vocab_size = tgt_vocab_size
         
@@ -109,7 +111,8 @@ class Dataset(Dataset):
                 layout.append(blank_idx)
         else:
             if self.max_cut:
-                new_pairs = [[pair[0].lower().split(' ')[:self.max_src_len], pair[1].lower().split(' ')[:self.max_tgt_len]] for pair in pairs]
+                new_pairs = [[pair[0].lower().split(' ')[:self.max_src_len],
+                              pair[1].lower().split(' ')[:self.max_tgt_len]] for pair in pairs]
             else:
                 new_pairs = [[pair[0].lower().split(' '), pair[1].lower().split(' ')] for pair in pairs]
                 new_pairs = [pair for pair in new_pairs if self._filterPair(pair)]
@@ -140,8 +143,8 @@ class Dataset(Dataset):
         org_src_n_words = self.src_vocab.n_words
         org_tgt_n_words = self.tgt_vocab.n_words
             
-        self.src_vocab.makeVocabDict(self.src_vocab_size)
-        self.tgt_vocab.makeVocabDict(self.tgt_vocab_size)
+        self.src_vocab.makeVocabDict(self.src_vocab_size, self.min_frequency)
+        self.tgt_vocab.makeVocabDict(self.tgt_vocab_size, self.min_frequency)
         
         self.src_vocab_size = self.src_vocab.n_words
         self.tgt_vocab_size = self.tgt_vocab.n_words

@@ -53,7 +53,6 @@ class Trainer(object):
             optimizer = optim.Adam(self.model.parameters(), lr=lr_val)
         if criterion == None:
             criterion = nn.NLLLoss(size_average=True, ignore_index=self.data_loader.dataset.src_vocab.pad_idx).cuda(self.gpu_id)
-            #criterion = nn.NLLLoss(size_average=True, ignore_index=self.data_loader.dataset.src_vocab.pad_idx).cuda(self.gpu_id)
         
         plot_losses = []
         print_loss_total = 0  # Reset every print_every

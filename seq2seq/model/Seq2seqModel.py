@@ -24,9 +24,6 @@ class Seq2seqModel(nn.Module):
         self.output_size = output_size
         self.n_layers = 1
         
-        self.encoder_mode = encoder_mode
-        self.attn_mode = attn_mode
-        
         self.dropout_p = dropout_p
         self.bidirectional = bidirectional
         self.num_direction = 2 if bidirectional else 1
@@ -37,13 +34,13 @@ class Seq2seqModel(nn.Module):
         """
         Encoder uses GRU with embedding layer and packing sequence
         """
-        self.encoder = EncoderRNN(input_size, emb_size, hidden_size, self.n_layers, self.bidirectional, self.encode_mode)
+        self.encoder = EncoderRNN(input_size, emb_size, hidden_size, self.n_layers, self.bidirectional, encode_mode, self.gpu_id)
         
         """
         Decoder uses GRU with embedding layer, fully connected layer and log-softmax
         """
         self.decoder = DecoderRNN(self.hidden_size*2 if self.bidirectional else self.hidden_size, emb_size, self.output_size,
-                                  self.attn_mode, self.n_layers, self.dropout_p, self.max_tgt_len, self.bidirectional, self.gpu_id)
+                                  attn_mode, self.n_layers, self.dropout_p, self.max_tgt_len, self.bidirectional, self.gpu_id)
 
         if self.gpu_id != -1:
             self.cuda(self.gpu_id)
@@ -90,7 +87,7 @@ class Seq2seqModel(nn.Module):
         
         # Encoder
         encoder_hidden = self.initHidden(1)  # batch_size = 1
-        encoder_outputs, encoder_hidden = self.encoder(encoder_input, encoder_input_length, encoder_hidden)
+        encoder_outputs, encoder_hidden = self.encoder(encoder_input, encoder_input_length, encoder_hidden, layout)
     
         # Decoder
         decoder_hidden = encoder_hidden
