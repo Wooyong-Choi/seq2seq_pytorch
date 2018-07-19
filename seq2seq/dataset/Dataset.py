@@ -8,7 +8,6 @@ from torch.utils.data import Dataset
 from .Vocab import Vocab
 
 
-# TODO: 너무 느림..
 class Dataset(Dataset):
     """
     A dataset basically supports iteration over all the examples it contains.
@@ -16,25 +15,26 @@ class Dataset(Dataset):
     This class is inheriting Dataset class in torch.utils.data.
     """
 
-    def __init__(self, src_file_path, tgt_file_path, max_src_len, max_tgt_len, max_cut=False, src_vocab_size=sys.maxsize, tgt_vocab_size=sys.maxsize):
+    def __init__(self, src_file_path, tgt_file_path, max_src_len, max_tgt_len,
+                 max_cut=False, src_vocab_size=sys.maxsize, tgt_vocab_size=sys.maxsize):
         super(Dataset, self).__init__()
         
         self.src_file_path = src_file_path
         self.tgt_file_path = tgt_file_path
-        
         self.max_src_len = max_src_len
         self.max_tgt_len = max_tgt_len
         self.src_vocab_size = src_vocab_size
         self.tgt_vocab_size = tgt_vocab_size
         
-        self.pairs = None
+        self.max_cut = max_cut
+        
         self.src_vocab = Vocab()
         self.tgt_vocab = Vocab()
         
         self.train_pairs = None
         self.test_pairs = None
         
-        self._prepareData(max_cut=max_cut)
+        self._prepareData()
         
     def __getitem__(self, index):
         src_indices = self.src_vocab.sentence_to_indices(self.train_pairs[index][0])
@@ -46,17 +46,25 @@ class Dataset(Dataset):
     def __len__(self):
         return len(self.train_pairs)
     
-    def _prepareData(self, max_cut):
-        self._readData()
-        print("Read %s sentence pairs" % len(self.pairs))
+    def _prepareData(self):
+        pairs = self._readData()
+        print("Read %s sentence pairs" % len(pairs))
+        print()
         
-        self._filterPairs(max_cut)
-        print("Trim data to %s sentence pairs" % len(self.pairs))
+        pairs = self._filterPairs(pairs)
+        print("Trim data to %s sentence pairs" % len(pairs))
+        print("Avg length of src : ", sum([len(pair[0]) for pair in pairs]) / len(pairs))
+        print("Avg length of tgt : ", sum([len(pair[1]) for pair in pairs]) / len(pairs))
+        print()
         
-        self._prepareVocab()
+        self._prepareVocab(pairs)
+        print()
         
-        self.train_pairs = self.pairs[:int(len(self.pairs)*0.8)]
-        self.test_pairs = self.pairs[int(len(self.pairs)*0.8):]
+        self.train_pairs = pairs[:int(len(pairs)*0.9)]
+        self.test_pairs = pairs[int(len(pairs)*0.9):]
+        
+        print("Success to preprocess data!")
+        print()
     
     def _readData(self):
         print("Reading lines...")
@@ -66,22 +74,27 @@ class Dataset(Dataset):
         tgt_lines = open(self.tgt_file_path, 'r', encoding='utf-8').readlines()
         
         # Split every line into pairs and normalize
-        self.pairs = [[src_lines[i].strip(), tgt_lines[i].strip()] for i in range(len(src_lines))]
+        pairs = [[src_lines[i].strip(), tgt_lines[i].strip()] for i in range(len(src_lines))]
+        
+        return pairs
     
-        print("Success!")
-    
-    def _filterPairs(self, max_cut):
-        self.pairs = [[pair[0].split(' '), pair[1].split(' ')] for pair in self.pairs]
-        if max_cut:
-            self.pairs = [[pair[0][:self.max_src_len], pair[1][:self.max_tgt_len]] for pair in self.pairs]
+    def _filterPairs(self, pairs):
+        if self.max_cut:
+            new_pairs = [[pair[0].lower().split(' ')[:self.max_src_len],
+                          pair[1].lower().split(' ')[:self.max_tgt_len]] for pair in pairs]
         else:
-            self.pairs = [pair for pair in self.pairs if self._filterPair(pair)]
+            new_pairs = [[pair[0].lower().split(' '), pair[1].lower().split(' ')] for pair in pairs]
+            new_pairs = [pair for pair in new_pairs if self._filterPair(pair)]
+        
+        
+        return new_pairs
         
     def _filterPair(self, p):
-        return len(p[0]) <= self.max_src_len and len(p[1]) <= self.max_tgt_len and len(p[0]) > 1 and len(p[1]) > 1
+        return (len(p[0]) <= self.max_src_len and len(p[1]) <= self.max_tgt_len and
+                len(p[0]) > 0 and len(p[1]) > 0)
     
-    def _prepareVocab(self):
-        for pair in self.pairs:
+    def _prepareVocab(self, pairs):
+        for pair in pairs:
             self.src_vocab.addSentence(pair[0])
             self.tgt_vocab.addSentence(pair[1])
             
