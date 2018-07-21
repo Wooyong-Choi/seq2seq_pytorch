@@ -28,6 +28,8 @@ class EncoderRNN(nn.Module):
         
         if self.encode_mode == 'max':
             outputs = self.getMaxedContext(outputs, layout, self.input_size, self.hidden_size*2 if self.bidirectional else self.hidden_size)
+        if self.encode_mode == 'avg':
+            outputs = self.getAvgedContext(outputs, layout, self.input_size, self.hidden_size*2 if self.bidirectional else self.hidden_size)
             
         return outputs, hidden
     
@@ -51,4 +53,26 @@ class EncoderRNN(nn.Module):
             maxed_contexts.append(maxed_context)
 
         maxed_contexts = torch.stack(maxed_contexts, dim=0)
+        return maxed_contexts
+    
+    def getAvgedContext(self, context, layout, input_size, hidden_size):
+        max_word_lens = max([len(l)-1 for l in layout])
+
+        avged_contexts = []
+        for i, l in enumerate(layout):
+            cur_batch_context = []
+            for j in range(len(l)-1):
+                prev = l[j]
+                next = l[j+1]
+                num = next - prev
+                if num != 0:
+                    cur_batch_context.append(torch.cat([context[i, prev:next].sum(dim=1) / num], dim=0))
+            avged_context = torch.stack(cur_batch_context, dim=0)
+            padding_size = max_word_lens - len(cur_batch_context)
+            if padding_size != 0:
+                padding_vec = torch.zeros((padding_size, hidden_size)).cuda(self.gpu_id)
+                avged_context = torch.cat((avged_context, padding_vec), dim=0)
+            avged_contexts.append(avged_context)
+
+        avged_contexts = torch.stack(avged_contexts, dim=0)
         return maxed_contexts
