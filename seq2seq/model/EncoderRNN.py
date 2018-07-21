@@ -56,7 +56,7 @@ class EncoderRNN(nn.Module):
         maxed_contexts = torch.stack(maxed_contexts, dim=0)
         return maxed_contexts
     
-    def getAvgedContext(context, layout, input_size, hidden_size):
+    def getAvgedContext(self, context, layout, input_size, hidden_size):
         max_word_lens = max([len(l)-1 for l in layout])
     
         avged_contexts = []
