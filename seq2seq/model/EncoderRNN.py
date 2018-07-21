@@ -72,7 +72,7 @@ class EncoderRNN(nn.Module):
             avged_context = torch.stack(cur_batch_context, dim=0)
             padding_size = max_word_lens - len(cur_batch_context)
             if padding_size != 0:
-                padding_vec = torch.zeros((padding_size, hidden_size*2)).cuda()
+                padding_vec = torch.zeros((padding_size, hidden_size)).cuda(self.gpu_id)
                 avged_context = torch.cat((avged_context, padding_vec), dim=0)
             avged_contexts.append(avged_context)
     
