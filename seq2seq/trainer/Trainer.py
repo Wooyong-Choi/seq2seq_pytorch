@@ -66,7 +66,7 @@ class Trainer(object):
                 optimizer.zero_grad()
                 
                 # prepare batch data                
-                check_time = time.time()##
+                #check_time = time.time()##
                 
                 enc_input = self.prepareBatch(src_batch, max(src_length))
                 dec_input = self.prepareBatch(tgt_batch, max(tgt_length), appendSOS=True)
@@ -76,27 +76,27 @@ class Trainer(object):
                     dec_input = dec_input.cuda(self.gpu_id)
                     dec_target = dec_target.cuda(self.gpu_id)
                     
-                print("Data prepare : %.4lf seconds" % ((time.time() - check_time)))##
+                #print("Data prepare : %.4lf seconds" % ((time.time() - check_time)))##
                 
                 # forward model
-                check_time = time.time()##
+                #check_time = time.time()##
                 
                 decoder_outputs = self.model(enc_input, dec_input, src_length, src_layout)
                 
-                print("Forwarding  : %.4lf seconds" % ((time.time() - check_time)))##
+                #print("Forwarding  : %.4lf seconds" % ((time.time() - check_time)))##
                 
                 start_time = time.time()
             
                 # calculate loss and back-propagate
-                check_time = time.time()##
+                #check_time = time.time()##
                 
                 loss = criterion(decoder_outputs.view(-1, self.model.output_size), dec_target.view(-1))
                 loss.backward()
     
                 optimizer.step()
         
-                print("Backprop   : %.4lf seconds" % ((time.time() - check_time)))##
-                print()
+                #print("Backprop   : %.4lf seconds" % ((time.time() - check_time)))##
+                #print()
         
                 print_loss_total += loss.item()
                 plot_loss_total += loss.item()

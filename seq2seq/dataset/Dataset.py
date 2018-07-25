@@ -96,7 +96,7 @@ class Dataset(Dataset):
         layout = []
         if self.charModel:
             for pair in pairs:
-                pair = [[c.lower() for c in re.sub('[\s+]', '^', pair[0])],
+                pair = [[c.lower() for c in re.sub('\s+', '^', pair[0])],
                         pair[1].lower().split(' ')]
                 
                 if self.max_cut:
