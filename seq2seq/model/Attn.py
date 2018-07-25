@@ -8,6 +8,8 @@ class Attn(nn.Module):
         super(Attn, self).__init__()
         self.attn_mode = attn_mode
         self.gpu_id = gpu_id
+        if self.attn_mode == 'general':
+            self.W_a = nn.Linear(dim, dim)
         self.W = nn.Linear(dim*2, dim)
 
     def forward(self, output, context, layout):
@@ -20,6 +22,9 @@ class Attn(nn.Module):
         # h_s = context
         # dot score
         # (batch, out_len, dim) * (batch, dim, in_len) -> (batch, out_len, in_len)
+        
+        if self.attn_mode == 'general':
+            context = self.W_a(context)
         score = torch.bmm(output, context.transpose(1, 2))
         if self.attn_mode == 'max':
             score = self.getMaxedScore(score, layout, input_size, output_size)

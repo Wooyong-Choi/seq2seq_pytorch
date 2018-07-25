@@ -83,11 +83,11 @@ class Dataset(Dataset):
         src_lines = open(self.src_file_path, 'r', encoding='utf-8').readlines()
         tgt_lines = open(self.tgt_file_path, 'r', encoding='utf-8').readlines()
         
-        # Split every line into pairs and normalize
+        # Split every line into pairs and normaliz
         pairs = [[src_lines[i].strip(), tgt_lines[i].strip()] for i in range(len(src_lines))]
         
-        print("Avg length of src : ", sum([len(pair[0]) for pair in pairs]) / len(pairs))
-        print("Avg length of tgt : ", sum([len(pair[1]) for pair in pairs]) / len(pairs))
+        print("Avg length of src : ", sum([len(pair[0].split(' ')) for pair in pairs]) / len(pairs))
+        print("Avg length of tgt : ", sum([len(pair[1].split(' ')) for pair in pairs]) / len(pairs))
         
         return pairs
     
@@ -97,7 +97,7 @@ class Dataset(Dataset):
         if self.charModel:
             for pair in pairs:
                 pair = [[c.lower() for c in re.sub('[\s+]', '^', pair[0])],
-                        [c.lower() for c in re.sub('[\s+]', '^', pair[1])]]
+                        pair[1].lower().split(' ')]
                 
                 if self.max_cut:
                     pair = [pair[0][:self.max_src_len], pair[1][:self.max_tgt_len]]
