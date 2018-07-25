@@ -24,7 +24,7 @@ class EncoderRNN(nn.Module):
         """
         Inputs is batch of sentences: BATCH_SIZE x MAX_LENGTH+1
         """
-        start_time = time.time()
+        #start_time = time.time()
         embedded = self.embedding(input_seqs)
         packed = pack_padded_sequence(embedded, input_lens, batch_first=True)
         outputs, hidden = self.rnn(packed) # default zero hidden
@@ -32,7 +32,7 @@ class EncoderRNN(nn.Module):
         #print("Encoding : %s seconds" % (time.time() - start_time))
         
         if self.encode_mode == 'max':
-            start_time = time.time()
+            #start_time = time.time()
             outputs = self.getMaxedContext(outputs, layout, self.hidden_size*self.num_direction)
             #print("Pooling  : %s seconds" % (time.time() - start_time))
             
@@ -41,18 +41,13 @@ class EncoderRNN(nn.Module):
     def getMaxedContext(self, context, layout, hidden_size):
         max_word_lens = max([len(l)-1 for l in layout])
         
+        context = context.detach()
+        
         maxed_contexts = []
         for i, l in enumerate(layout):
-            cur_batch_context = []
-            for j in range(len(l)-1):
-                prev = l[j]
-                next = l[j+1]
-                num = next - prev
-                if num != 0:
-                    cur_batch_context.append(context[i, prev:next].max(dim=0)[0])
-                    
-            maxed_context = torch.stack(cur_batch_context, dim=0)
-            padding_size = max_word_lens - len(cur_batch_context)
+            # l[j] = prev, l[j+1] = next
+            maxed_context = torch.cat([context[i, l[j]:l[j+1]].max(dim=0, keepdim=True)[0] for j in range(len(l)-1)], dim=0)
+            padding_size = max_word_lens - len(l)+1
             if padding_size != 0:
                 padding_vec = torch.zeros((padding_size, hidden_size)).cuda(self.gpu_id)
                 maxed_context = torch.cat((maxed_context, padding_vec), dim=0)
