@@ -35,6 +35,9 @@ class EncoderRNN(nn.Module):
             #start_time = time.time()
             outputs = self.getMaxedContext(outputs, layout, self.hidden_size*self.num_direction)
             #print("Pooling  : %s seconds" % (time.time() - start_time))
+        elif self.encode_mode == 'avg':
+            #start_time = time.time()
+            outputs = self.getAvgedContext(outputs, layout, self.hidden_size*self.num_direction)
             
         return outputs, hidden
     
@@ -55,3 +58,22 @@ class EncoderRNN(nn.Module):
 
         maxed_contexts = torch.stack(maxed_contexts, dim=0)
         return maxed_contexts
+    
+    
+    def getAvgedContext(self, context, layout, hidden_size):
+        max_word_lens = max([len(l)-1 for l in layout])
+        
+        context = context.detach()
+        
+        avged_contexts = []
+        for i, l in enumerate(layout):
+            # l[j] = prev, l[j+1] = next
+            avged_context = torch.cat([context[i, l[j]:l[j+1]].sum(dim=0, keepdim=True)/(l[j+1]-l[j]) for j in range(len(l)-1)], dim=0)
+            padding_size = max_word_lens - len(l)+1
+            if padding_size != 0:
+                padding_vec = torch.zeros((padding_size, hidden_size)).cuda(self.gpu_id)
+                avged_context = torch.cat((avged_context, padding_vec), dim=0)
+            avged_contexts.append(avged_context)
+
+        avged_contexts = torch.stack(avged_contexts, dim=0)
+        return avged_contexts

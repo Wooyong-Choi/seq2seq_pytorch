@@ -3,6 +3,7 @@ from __future__ import unicode_literals
 
 import torch
 import random
+from tqdm import tqdm
 
 from seq2seq.model import Seq2seqModel
 
@@ -21,7 +22,7 @@ class Evaluator(object):
     def evalModel(self, num, beam_size=-1, rand=True, showAttn=False):
         pairs = []
         attn_list = []
-        for i in range(num):
+        for i in tqdm(range(num)):
             if rand:
                 test_idx = random.randint(0, len(self.dataset.test_pairs)-1)
             else:
