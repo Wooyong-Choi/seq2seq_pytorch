@@ -42,6 +42,9 @@ class Trainer(object):
         
         print('Start to train')
         
+        if os.path.exists(self.expr_path+'log.txt'):
+            os.remove(self.expr_path+'log.txt')
+        
         self.data_loader = DataLoader(
             dataset=self.dataset,
             batch_size=batch_size,
@@ -58,9 +61,6 @@ class Trainer(object):
         print_loss_total = 0  # Reset every print_every
         plot_loss_total = 0  # Reset every plot_every
         
-        if os.path.exists(self.expr_path+'log.txt'):
-            os.remove(self.expr_path+'log.txt')
-    
         for epoch in range(1, num_epoch+1):
             for src_batch, tgt_batch, src_length, tgt_length, src_layout in self.data_loader:
                 optimizer.zero_grad()

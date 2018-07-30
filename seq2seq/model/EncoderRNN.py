@@ -33,18 +33,18 @@ class EncoderRNN(nn.Module):
         
         if self.encode_mode == 'max':
             #start_time = time.time()
-            outputs = self.getMaxedContext(outputs, layout, self.hidden_size*self.num_direction)
+            outputs = self.getMaxedContext(outputs.detach(), layout, self.hidden_size*self.num_direction)
             #print("Pooling  : %s seconds" % (time.time() - start_time))
         elif self.encode_mode == 'avg':
             #start_time = time.time()
-            outputs = self.getAvgedContext(outputs, layout, self.hidden_size*self.num_direction)
+            outputs = self.getAvgedContext(outputs.detach(), layout, self.hidden_size*self.num_direction)
             
         return outputs, hidden
     
     def getMaxedContext(self, context, layout, hidden_size):
         max_word_lens = max([len(l)-1 for l in layout])
         
-        context = context.detach()
+        #context = context
         
         maxed_contexts = []
         for i, l in enumerate(layout):
