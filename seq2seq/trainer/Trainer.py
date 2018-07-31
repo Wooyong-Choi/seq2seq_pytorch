@@ -23,7 +23,6 @@ class Trainer(object):
         super(Trainer, self).__init__()
         self.model = model
         self.dataset = dataset
-        self.data_loader = None
         self.eval_data = None
         
         self.gpu_id = gpu_id
@@ -45,7 +44,7 @@ class Trainer(object):
         if os.path.exists(self.expr_path+'log.txt'):
             os.remove(self.expr_path+'log.txt')
         
-        self.data_loader = DataLoader(
+        data_loader = DataLoader(
             dataset=self.dataset,
             batch_size=batch_size,
             collate_fn=sorted_collate_fn,
