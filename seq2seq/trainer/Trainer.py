@@ -54,7 +54,7 @@ class Trainer(object):
         if optimizer == None:
             optimizer = optim.Adam(self.model.parameters(), lr=lr_val)
         if criterion == None:
-            criterion = nn.NLLLoss(size_average=True, ignore_index=self.data_loader.dataset.src_vocab.pad_idx).cuda(self.gpu_id)
+            criterion = nn.NLLLoss(size_average=True, ignore_index=self.dataset.src_vocab.pad_idx).cuda(self.gpu_id)
         
         plot_losses = []
         print_loss_total = 0  # Reset every print_every
@@ -131,9 +131,9 @@ class Trainer(object):
         
     #TODO: 밑에 애들 utils 로 옮길까
     def prepareBatch(self, batch, max_len, appendSOS=False, appendEOS=False):
-        SOS_IDX = self.data_loader.dataset.src_vocab.sos_idx
-        EOS_IDX = self.data_loader.dataset.src_vocab.eos_idx
-        PAD_IDX = self.data_loader.dataset.src_vocab.pad_idx
+        SOS_IDX = self.dataset.src_vocab.sos_idx
+        EOS_IDX = self.dataset.src_vocab.eos_idx
+        PAD_IDX = self.dataset.src_vocab.pad_idx
         
         batch_list = []
         for indices in batch:
