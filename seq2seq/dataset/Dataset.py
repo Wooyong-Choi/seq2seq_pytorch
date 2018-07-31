@@ -97,7 +97,8 @@ class Dataset(Dataset):
         if self.charModel:
             for pair in pairs:
                 pair = [[c.lower() for c in re.sub('\s+', '^', pair[0])],
-                        pair[1].lower().split(' ')]
+                        [c.lower() for c in re.sub('\s+', '^', pair[1])]]
+                        #pair[1].lower().split(' ')]
                 
                 if self.max_cut:
                     pair = [pair[0][:self.max_src_len], pair[1][:self.max_tgt_len]]

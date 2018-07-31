@@ -61,7 +61,7 @@ class Trainer(object):
         plot_loss_total = 0  # Reset every plot_every
         
         for epoch in range(1, num_epoch+1):
-            for src_batch, tgt_batch, src_length, tgt_length, src_layout in self.data_loader:
+            for src_batch, tgt_batch, src_length, tgt_length, src_layout in data_loader:
                 optimizer.zero_grad()
                 
                 # prepare batch data                
