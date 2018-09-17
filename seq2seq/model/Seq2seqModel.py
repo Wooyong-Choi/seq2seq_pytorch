@@ -41,7 +41,7 @@ class Seq2seqModel(nn.Module):
         Decoder uses GRU with embedding layer, fully connected layer and log-softmax
         """
         self.decoder = DecoderRNN(self.hidden_size*2 if self.bidirectional else self.hidden_size, emb_size, self.output_size, 
-                                  self.n_layers, self.dropout_p, self.max_tgt_len, self.gpu_id)
+                                  self.n_layers, self.dropout_p, self.max_tgt_len, self.bidirectional, self.gpu_id)
 
         if self.gpu_id != -1:
             self.cuda(self.gpu_id)
