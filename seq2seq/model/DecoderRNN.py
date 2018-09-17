@@ -7,7 +7,7 @@ from .Attn import Attn
 
 class DecoderRNN(nn.Module):
     def __init__(self, hidden_size, emb_size, output_size,
-                 n_layers, dropout_p, max_length, bidirection, gpu_id=-1):
+                 n_layers, dropout_p, max_length, gpu_id=-1):
         super(DecoderRNN, self).__init__()
         self.hidden_size = hidden_size
         self.emb_size = emb_size
