@@ -5,7 +5,7 @@ from operator import itemgetter
 from tqdm import tqdm
 from torch.utils.data import Dataset
 
-from .Vocab import Vocab
+import Vocab
 
 
 class Dataset(Dataset):
@@ -37,11 +37,11 @@ class Dataset(Dataset):
         self._prepareData()
         
     def __getitem__(self, index):
-        src_indices = self.src_vocab.sentence_to_indices(self.train_pairs[index][0])
-        tgt_indices = self.tgt_vocab.sentence_to_indices(self.train_pairs[index][1])
-        src_lengths = len(self.train_pairs[index][0])
-        tgt_lengths = len(self.train_pairs[index][1])
-        return (src_indices, tgt_indices, src_lengths, tgt_lengths)
+        src_indice = self.src_vocab.sentence2indice(self.train_pairs[index][0])
+        tgt_indice = self.tgt_vocab.sentence2indice(self.train_pairs[index][1])
+        src_length = len(self.train_pairs[index][0])
+        tgt_length = len(self.train_pairs[index][1])
+        return (src_indice, tgt_indice, src_length, tgt_length)
                 
     def __len__(self):
         return len(self.train_pairs)

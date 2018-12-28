@@ -1,33 +1,32 @@
 import operator
+from collections import Counter
+
+
+PAD_TOK, SOS_TOK, EOS_TOK, UNK_TOK = ('<PAD>', '<SOS>', '<EOS>', '<UNK>')        
+PAD_IDX, SOS_IDX, EOS_IDX, UNK_IDX = (0, 1, 2, 3)
+
 
 class Vocab:
     """
-    A vocabulary class has word dictionary.
+    A vocabulary class has word counter and dictionary.
     """
     
     def __init__(self):
         self.num_symbol = 4
-        self.pad_tok, self.sos_tok, self.eos_tok, self.unk_tok = ('<PAD>', '<SOS>', '<EOS>', '<UNK>')        
-        self.pad_idx, self.sos_idx , self.eos_idx, self.unk_idx = (0, 1, 2, 3)
         
-        self.word2count = {}
+        self.word2count = Counter()
         self.word2index = {}
-        self.index2word = dict(
-            list(zip([self.pad_idx, self.sos_idx, self.eos_idx, self.unk_idx],
-                     [self.pad_tok, self.sos_tok, self.eos_tok, self.unk_tok]))
-        )
+        self.index2word = {PAD_IDX:PAD_TOK,
+                           SOS_IDX:SOS_TOK,
+                           EOS_IDX:EOS_TOK,
+                           UNK_IDX:UNK_TOK}
         self.n_words = len(self.index2word)
 
     def addSentence(self, sentence):
-        for word in sentence:
-            self.addWord(word)
-
-    def addWord(self, word):
-        if word not in self.word2count:
-            self.word2count[word] = 1
-            self.n_words += 1
-        else:
-            self.word2count[word] += 1            
+        """
+        Add a sentence to word counter
+        """
+        self.word2count.update(sentence)
         
     def makeVocabDict(self, vocab_size):
         """
@@ -38,7 +37,7 @@ class Vocab:
         vocab_size = min(vocab_size, len(self.word2count)+4)
         
         # sort vocab dictionary using frequency
-        sorted_vocab = sorted(self.word2count.items(), key=operator.itemgetter(1), reverse=True)[:vocab_size]
+        sorted_vocab = self.word2count.most_common()
         
         # update index2word dictionary
         sorted_i2w = {i+self.num_symbol:sorted_vocab[i][0] for i in range(vocab_size-self.num_symbol)}
@@ -50,8 +49,8 @@ class Vocab:
         # update a num of words
         self.n_words = vocab_size
         
-    def sentence_to_indices(self, sentence):
+    def sentence2indice(self, sentence):
         return [self.word2index[word] if word in self.word2index else self.unk_idx for word in sentence]
     
-    def indices_to_sentence(self, indices):
+    def indice2sentence(self, indice):
         return [self.index2word[idx] if idx in self.index2word else self.unk_tok for idx in indices]
