@@ -21,6 +21,6 @@ class EncoderRNN(nn.Module):
         """
         embedded = self.embedding(input_seqs)
         packed = pack_padded_sequence(embedded, input_lens, batch_first=True)
-        outputs, hidden = self.rnn(packed) # default zero hidden
+        outputs, hidden = self.rnn(packed, hidden) # default zero hidden
         outputs, output_lengths = pad_packed_sequence(outputs, batch_first=True)
         return outputs, hidden
