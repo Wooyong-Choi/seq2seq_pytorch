@@ -1,2 +1,2 @@
-from .Beam import Beam
-from .Visualization import vizAttn, vizAccumAttn
+from seq2seq.utils.beam import Beam
+from seq2seq.utils.visualization import vizAttn, vizAccumAttn
